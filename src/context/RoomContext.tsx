@@ -100,7 +100,7 @@ export function RoomProvider({ children }: { children: ReactNode }) {
       setParticipants(list);
     });
 
-    ch.on('broadcast', { event: 'stroke' }, (payload) => {
+    ch.on('broadcast', { event: 'stroke' }, (payload: { payload: WhiteboardStroke }) => {
       const stroke = payload.payload as WhiteboardStroke;
       strokeCallbacks.current.forEach((cb) => cb(stroke));
     });
@@ -109,13 +109,13 @@ export function RoomProvider({ children }: { children: ReactNode }) {
       clearCallbacks.current.forEach((cb) => cb());
     });
 
-    ch.on('broadcast', { event: 'cursor' }, (payload) => {
+    ch.on('broadcast', { event: 'cursor' }, (payload: { payload: RemoteCursor }) => {
       const cursor = payload.payload as RemoteCursor;
       if (cursor.id === userIdRef.current) return;
       setRemoteCursors((prev) => ({ ...prev, [cursor.id]: cursor }));
     });
 
-    ch.subscribe(async (status) => {
+    ch.subscribe(async (status: string) => {
       if (status === 'SUBSCRIBED') {
         await ch.track(presence);
       }

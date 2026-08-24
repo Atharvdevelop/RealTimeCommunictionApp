@@ -44,7 +44,7 @@ export function ChatDrawer({ onClose, onRead }: Props) {
       .select('*')
       .eq('room_id', roomDbId)
       .order('created_at', { ascending: true })
-      .then(({ data }) => {
+      .then(({ data }: { data: Message[] | null }) => {
         if (data) setMessages(data);
       });
 
@@ -55,7 +55,7 @@ export function ChatDrawer({ onClose, onRead }: Props) {
         schema: 'public',
         table: 'messages',
         filter: `room_id=eq.${roomDbId}`,
-      }, (payload) => {
+      }, (payload: { new: Message }) => {
         const msg = payload.new as Message;
         setMessages((prev) => [...prev, msg]);
         onRead();
@@ -65,7 +65,7 @@ export function ChatDrawer({ onClose, onRead }: Props) {
     // File share broadcast channel
     const fileChannel = supabase.channel(`files:${roomDbId}`);
     fileChannel
-      .on('broadcast', { event: 'file' }, (payload) => {
+      .on('broadcast', { event: 'file' }, (payload: { payload: LocalFile }) => {
         const file = payload.payload as LocalFile;
         if (file.id !== userId) setSharedFiles((prev) => [...prev, file]);
       })

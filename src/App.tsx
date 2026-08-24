@@ -22,9 +22,7 @@ function AppInner() {
   const handlePreJoinComplete = useCallback(async () => {
     // Look up room DB id
     const { data } = await supabase.from('rooms').select('id').eq('code', roomCode).maybeSingle();
-    if (data) {
-      setRoomDbId(data.id);
-    }
+    setRoomDbId(data?.id || `room_${roomCode}`);
     setAppState('meeting');
   }, [roomCode, displayName]);
 
