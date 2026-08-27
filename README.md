@@ -4,8 +4,19 @@ A modern, full-featured real-time video conferencing and collaborative workspace
 
 ---
 
-## 🚀 Live Demo
-> **[Optional Live Link]**: *Deploy to Vercel/Netlify and paste your live deployment link here.*
+## 🌐 Live Demo & Deployment
+- **Live Deployed Site (Cloud Sync Enabled):** [https://realtimecommunictionapp.onrender.com](https://realtimecommunictionapp.onrender.com) *(or your deployed Render/Vercel URL)*
+
+## 🚀 Quick Start (Local Demo Mode)
+Anyone can test this project locally out of the box with zero configuration:
+
+```bash
+git clone https://github.com/Atharvdevelop/RealTimeCommunictionApp.git
+cd RealTimeCommunictionApp
+npm install
+npm run dev
+```
+> **Note**: If no `.env` file is provided, the application automatically launches in **Offline Demo Mode** using browser `BroadcastChannel` & `localStorage` — working camera feeds, whiteboard drawing, and local mock chat with zero setup!
 
 ---
 

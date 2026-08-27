@@ -10,6 +10,8 @@ export const isSupabaseConfigured = Boolean(
   !supabaseUrl.includes('placeholder')
 );
 
+export const isConfigured = isSupabaseConfigured;
+
 export type Room = {
   id: string;
   code: string;
