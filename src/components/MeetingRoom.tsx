@@ -255,16 +255,23 @@ export function MeetingRoom({ roomCode, displayName, roomDbId, isCreator, onLeav
     return remoteStreams[p.id] || null;
   };
 
-  // Grid columns based on count
+  // Dynamic grid responsive columns and rows
   const gridCount = gridParticipants.length;
-  const gridCols = gridCount <= 1 ? 'grid-cols-1' : gridCount <= 4 ? 'grid-cols-2' : gridCount <= 9 ? 'grid-cols-3' : 'grid-cols-4';
+  const gridLayout = 
+    gridCount <= 1 
+      ? 'grid-cols-1 grid-rows-1' 
+      : gridCount === 2 
+        ? 'grid-cols-1 sm:grid-cols-2 grid-rows-2 sm:grid-rows-1' 
+        : gridCount <= 4 
+          ? 'grid-cols-2 grid-rows-2' 
+          : 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 auto-rows-fr';
 
   if (!roomReady) {
     return (
-      <div className="min-h-screen bg-[#09090b] flex items-center justify-center">
+      <div className="min-h-screen bg-[#09090b] flex items-center justify-center p-4">
         <div className="text-center">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-400 to-cyan-500 flex items-center justify-center mx-auto mb-4 animate-pulse">
-            <Video className="w-8 h-8 text-white" />
+          <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br from-emerald-400 to-cyan-500 flex items-center justify-center mx-auto mb-4 animate-pulse shadow-lg shadow-emerald-500/20">
+            <Video className="w-7 h-7 sm:w-8 sm:h-8 text-white" />
           </div>
           <p className="text-white/50 text-sm">Connecting to room…</p>
         </div>
@@ -280,42 +287,42 @@ export function MeetingRoom({ roomCode, displayName, roomDbId, isCreator, onLeav
           <div
             key={t.id}
             className={cn(
-              "px-4 py-2.5 rounded-xl border backdrop-blur-xl shadow-2xl text-xs font-medium flex items-center gap-2.5 pointer-events-auto transition-all animate-in fade-in slide-in-from-top-2 duration-200",
+              "px-3.5 py-2.5 rounded-xl border backdrop-blur-xl shadow-2xl text-xs font-medium flex items-center gap-2.5 pointer-events-auto transition-all animate-in fade-in slide-in-from-top-2 duration-200",
               t.type === 'warning' && "bg-amber-500/15 border-amber-500/30 text-amber-300",
               t.type === 'danger' && "bg-red-500/15 border-red-500/30 text-red-300",
               t.type === 'success' && "bg-emerald-500/15 border-emerald-500/30 text-emerald-300",
-              t.type === 'info' && "bg-[#18181b]/90 border-white/[0.12] text-white"
+              t.type === 'info' && "bg-[#18181b]/95 border-white/[0.12] text-white"
             )}
           >
             {t.type === 'warning' && <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />}
             {t.type === 'danger' && <ShieldAlert className="w-4 h-4 text-red-400 shrink-0" />}
             {t.type === 'success' && <Crown className="w-4 h-4 text-emerald-400 shrink-0" />}
             {t.type === 'info' && <Info className="w-4 h-4 text-cyan-400 shrink-0" />}
-            <span className="flex-1">{t.message}</span>
+            <span className="flex-1 truncate">{t.message}</span>
           </div>
         ))}
       </div>
 
       {/* Top bar */}
-      <div className="flex items-center justify-between px-4 py-2.5 bg-[#121215]/80 backdrop-blur-xl border-b border-white/[0.06] z-30">
-        <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-emerald-400 to-cyan-500 flex items-center justify-center shadow-md">
+      <div className="flex items-center justify-between px-3 sm:px-4 py-2 sm:py-2.5 bg-[#121215]/80 backdrop-blur-xl border-b border-white/[0.06] z-30 shrink-0">
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-emerald-400 to-cyan-500 flex items-center justify-center shadow-md shrink-0">
             <Video className="w-4 h-4 text-white" />
           </div>
-          <span className="font-bold text-white text-sm hidden sm:inline">PulseMeet</span>
+          <span className="font-bold text-white text-sm hidden xs:inline sm:inline">PulseMeet</span>
         </div>
 
-        <div className="flex items-center gap-2.5">
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#18181b] border border-white/[0.06]">
+        <div className="flex items-center gap-1.5 sm:gap-2.5">
+          <div className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-[#18181b] border border-white/[0.06]">
             <Clock className="w-3.5 h-3.5 text-white/40" />
-            <span className="text-sm text-white/70 font-mono tabular-nums">{formatElapsed(elapsed)}</span>
+            <span className="text-xs sm:text-sm text-white/70 font-mono tabular-nums">{formatElapsed(elapsed)}</span>
           </div>
 
           {/* Share Link Button */}
           <button
             onClick={copyInviteLink}
             className={cn(
-              "flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all shadow-sm",
+              "flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all shadow-sm",
               copiedLink
                 ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-300"
                 : "bg-emerald-500/10 border-emerald-500/25 text-emerald-400 hover:bg-emerald-500/20"
@@ -323,25 +330,25 @@ export function MeetingRoom({ roomCode, displayName, roomDbId, isCreator, onLeav
             title="Copy shareable meeting invite link"
           >
             {copiedLink ? <Check className="w-3.5 h-3.5" /> : <Link2 className="w-3.5 h-3.5" />}
-            <span>{copiedLink ? 'Link Copied!' : 'Share Link'}</span>
+            <span className="hidden sm:inline">{copiedLink ? 'Link Copied!' : 'Share Link'}</span>
+            <span className="sm:hidden">{copiedLink ? 'Copied' : 'Share'}</span>
           </button>
 
           {/* Room Code */}
           <button
             onClick={copyCode}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#18181b] border border-white/[0.06] hover:border-white/10 text-white/70 hover:text-white transition-colors"
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-[#18181b] border border-white/[0.06] hover:border-white/10 text-white/70 hover:text-white transition-colors"
             title="Copy room code"
           >
-            <span className="font-mono text-sm text-white/80">{roomCode}</span>
+            <span className="font-mono text-xs sm:text-sm text-white/80">{roomCode}</span>
             {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-white/40" />}
           </button>
         </div>
       </div>
 
-      {/* Main area */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Video area */}
-        <div className="flex-1 p-3 pb-24 overflow-hidden">
+      {/* Main video area */}
+      <div className="flex-1 flex overflow-hidden relative">
+        <div className="flex-1 p-2 sm:p-3 pb-20 sm:pb-24 overflow-hidden">
           {spotlightParticipant ? (
             <div className="h-full flex flex-col gap-2">
               {/* Spotlight tile */}
@@ -357,9 +364,9 @@ export function MeetingRoom({ roomCode, displayName, roomDbId, isCreator, onLeav
               </div>
               {/* Carousel of others */}
               {gridParticipants.length > 0 && (
-                <div className="h-28 flex gap-2 overflow-x-auto">
+                <div className="h-24 sm:h-28 flex gap-2 overflow-x-auto pb-1">
                   {gridParticipants.map((p) => (
-                    <div key={p.id} className="w-44 shrink-0">
+                    <div key={p.id} className="w-36 sm:w-44 shrink-0 h-full">
                       <VideoTile
                         participant={p}
                         stream={getStreamFor(p)}
@@ -374,25 +381,26 @@ export function MeetingRoom({ roomCode, displayName, roomDbId, isCreator, onLeav
               )}
             </div>
           ) : (
-            <div className={cn('h-full grid gap-2', gridCols)}>
+            <div className={cn('h-full grid gap-1.5 sm:gap-2', gridLayout)}>
               {allParticipants.map((p) => (
-                <VideoTile
-                  key={p.id}
-                  participant={p}
-                  stream={getStreamFor(p)}
-                  isLocal={p.id === userId}
-                  isSpeaking={speakingId === p.id}
-                  isPinned={false}
-                  onPin={() => setPinnedId(p.id)}
-                />
+                <div key={p.id} className="w-full h-full min-h-0">
+                  <VideoTile
+                    participant={p}
+                    stream={getStreamFor(p)}
+                    isLocal={p.id === userId}
+                    isSpeaking={speakingId === p.id}
+                    isPinned={false}
+                    onPin={() => setPinnedId(p.id)}
+                  />
+                </div>
               ))}
             </div>
           )}
         </div>
 
-        {/* Right drawer */}
+        {/* Drawers: Fullscreen overlay on mobile, fixed sidebar on desktop */}
         {(chatOpen || participantsOpen) && (
-          <div className="w-full max-w-xs sm:w-80 z-40 h-full">
+          <div className="fixed inset-0 sm:relative sm:inset-auto w-full sm:w-80 z-50 h-full bg-[#121215] sm:bg-transparent animate-in fade-in sm:animate-none duration-150">
             {chatOpen && <ChatDrawer onClose={() => setChatOpen(false)} onRead={() => setUnreadCount(0)} />}
             {participantsOpen && !chatOpen && (
               <ParticipantsDrawer

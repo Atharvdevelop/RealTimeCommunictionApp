@@ -75,26 +75,26 @@ export function Lobby({ onEnterRoom }: Props) {
   };
 
   return (
-    <div className="min-h-screen bg-[#09090b] text-white flex items-center justify-center p-4 overflow-y-auto">
+    <div className="min-h-screen bg-[#09090b] text-white flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-emerald-500/10 rounded-full blur-[120px]" />
         <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-cyan-500/10 rounded-full blur-[120px]" />
       </div>
 
-      <div className="relative w-full max-w-md">
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center gap-2.5 mb-4">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-400 to-cyan-500 flex items-center justify-center shadow-lg shadow-emerald-500/30">
-              <Video className="w-6 h-6 text-white" />
+      <div className="relative w-full max-w-md my-auto py-4">
+        <div className="text-center mb-5 sm:mb-8">
+          <div className="inline-flex items-center gap-2.5 mb-3 sm:mb-4">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-emerald-400 to-cyan-500 flex items-center justify-center shadow-lg shadow-emerald-500/30">
+              <Video className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
             </div>
-            <span className="text-3xl font-bold tracking-tight">PulseMeet</span>
+            <span className="text-2xl sm:text-3xl font-bold tracking-tight">PulseMeet</span>
           </div>
-          <p className="text-white/50 text-sm flex items-center justify-center gap-1.5">
-            <Sparkles className="w-3.5 h-3.5" /> Real-time video conferencing & collaborative workspace
+          <p className="text-white/50 text-xs sm:text-sm flex items-center justify-center gap-1.5 px-2">
+            <Sparkles className="w-3.5 h-3.5 text-emerald-400 shrink-0" /> Real-time video conferencing & collaborative workspace
           </p>
         </div>
 
-        <div className="rounded-2xl bg-[#121215]/80 backdrop-blur-xl border border-white/[0.08] p-6 shadow-2xl">
+        <div className="rounded-2xl bg-[#121215]/80 backdrop-blur-xl border border-white/[0.08] p-4 sm:p-6 shadow-2xl">
           <div className="flex gap-1 p-1 rounded-xl bg-[#18181b] mb-5">
             <button
               onClick={() => setMode('create')}

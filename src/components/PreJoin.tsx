@@ -90,20 +90,20 @@ export function PreJoin({ roomCode, displayName, onJoin, onCancel }: Props) {
   };
 
   return (
-    <div className="min-h-screen bg-[#09090b] text-white flex items-center justify-center p-4">
+    <div className="min-h-screen bg-[#09090b] text-white flex items-center justify-center p-3 sm:p-4">
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-1/3 left-1/3 w-96 h-96 bg-emerald-500/10 rounded-full blur-[120px]" />
       </div>
 
-      <div className="relative w-full max-w-lg">
-        <div className="text-center mb-6">
-          <h1 className="text-2xl font-bold mb-1">Ready to join meeting?</h1>
-          <p className="text-white/40 text-sm">
+      <div className="relative w-full max-w-md sm:max-w-lg">
+        <div className="text-center mb-3 sm:mb-6">
+          <h1 className="text-xl sm:text-2xl font-bold mb-1">Ready to join?</h1>
+          <p className="text-white/40 text-xs sm:text-sm">
             Room Code: <span className="font-mono text-emerald-400 font-medium">{roomCode}</span>
           </p>
         </div>
 
-        <div className="rounded-2xl bg-[#121215]/80 backdrop-blur-xl border border-white/[0.08] p-6 shadow-2xl space-y-4">
+        <div className="rounded-2xl bg-[#121215]/80 backdrop-blur-xl border border-white/[0.08] p-4 sm:p-6 shadow-2xl space-y-3 sm:space-y-4">
           {/* Preview */}
           <div className="relative aspect-video rounded-xl overflow-hidden bg-[#18181b]">
             {state.localStream && state.camOn ? (

@@ -329,16 +329,16 @@ export function Whiteboard({ onClose }: Props) {
       </div>
 
       {/* Toolbar */}
-      <div className="flex items-center justify-between px-4 py-3 bg-[#121215]/80 backdrop-blur-xl border-t border-white/[0.08] flex-wrap gap-2">
+      <div className="flex items-center justify-between px-3 py-2 bg-[#121215]/90 backdrop-blur-xl border-t border-white/[0.08] overflow-x-auto gap-3 shrink-0">
         {/* Tools */}
-        <div className="flex items-center gap-1 rounded-xl bg-[#18181b] p-1">
+        <div className="flex items-center gap-1 rounded-xl bg-[#18181b] p-1 shrink-0">
           {tools.map((t) => (
             <button
               key={t.tool}
               onClick={() => setTool(t.tool)}
               title={t.label}
               className={cn(
-                'p-2 rounded-lg transition-all',
+                'p-2 rounded-lg transition-all shrink-0',
                 tool === t.tool ? 'bg-emerald-500/20 text-emerald-400' : 'text-white/50 hover:text-white hover:bg-white/5'
               )}
             >
@@ -348,13 +348,13 @@ export function Whiteboard({ onClose }: Props) {
         </div>
 
         {/* Colors */}
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 shrink-0">
           {COLORS.map((c) => (
             <button
               key={c}
               onClick={() => setColor(c)}
               className={cn(
-                'w-6 h-6 rounded-full border-2 transition-all',
+                'w-5 h-5 sm:w-6 sm:h-6 rounded-full border-2 transition-all shrink-0',
                 color === c ? 'border-white scale-110' : 'border-white/20 hover:scale-105'
               )}
               style={{ background: c }}
@@ -363,15 +363,15 @@ export function Whiteboard({ onClose }: Props) {
         </div>
 
         {/* Size slider */}
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-white/40">Size</span>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <span className="text-[10px] sm:text-xs text-white/40">Size</span>
           <div className="flex items-center gap-1">
             {SIZES.map((s) => (
               <button
                 key={s}
                 onClick={() => setSize(s)}
                 className={cn(
-                  'w-8 h-8 rounded-lg flex items-center justify-center transition-all',
+                  'w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center transition-all',
                   size === s ? 'bg-white/10' : 'hover:bg-white/5'
                 )}
               >
@@ -385,7 +385,7 @@ export function Whiteboard({ onClose }: Props) {
         </div>
 
         {/* Actions */}
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 shrink-0">
           <button onClick={undo} disabled={history.length === 0} className="p-2 rounded-lg text-white/60 hover:text-white hover:bg-white/5 disabled:opacity-30 transition-colors" title="Undo">
             <Undo2 className="w-4 h-4" />
           </button>

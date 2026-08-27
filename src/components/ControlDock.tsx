@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import {
   Mic, MicOff, Video, VideoOff, MonitorUp, MonitorOff,
-  PenTool, MessageSquare, Users, PhoneOff, ChevronDown,
+  PenTool, MessageSquare, Users, PhoneOff, ChevronDown, MoreHorizontal
 } from 'lucide-react';
 import { useMedia } from '@/hooks/useMedia';
 import { cn } from '@/lib/utils';
@@ -28,27 +28,29 @@ export function ControlDock(props: Props) {
   const { state, switchDevice } = useMedia();
   const [micMenuOpen, setMicMenuOpen] = useState(false);
   const [camMenuOpen, setCamMenuOpen] = useState(false);
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
 
   return (
     <>
-      <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50">
-        <div className="flex items-center gap-1.5 px-2 py-2 rounded-2xl bg-[#121215]/80 backdrop-blur-xl border border-white/[0.08] shadow-2xl">
+      <div className="fixed bottom-3 sm:bottom-5 left-1/2 -translate-x-1/2 z-40 max-w-[calc(100vw-1rem)] w-auto">
+        <div className="flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-2 py-1.5 sm:py-2 rounded-2xl bg-[#121215]/90 backdrop-blur-2xl border border-white/[0.1] shadow-2xl shadow-black/80">
           {/* Mic */}
           <div className="relative">
             <div className="flex items-center rounded-xl bg-[#18181b] overflow-hidden">
               <DockButton
                 active={props.micOn}
                 onClick={props.onToggleMic}
-                icon={props.micOn ? <Mic className="w-5 h-5" /> : <MicOff className="w-5 h-5" />}
+                icon={props.micOn ? <Mic className="w-4 h-4 sm:w-5 sm:h-5" /> : <MicOff className="w-4 h-4 sm:w-5 sm:h-5" />}
                 danger={!props.micOn}
                 label={props.micOn ? 'Mute' : 'Unmute'}
               />
               <button
-                onClick={() => { setMicMenuOpen((v) => !v); setCamMenuOpen(false); }}
-                className="px-1.5 border-l border-white/[0.06] text-white/40 hover:text-white transition-colors"
+                onClick={() => { setMicMenuOpen((v) => !v); setCamMenuOpen(false); setMoreMenuOpen(false); }}
+                className="hidden sm:block px-1.5 border-l border-white/[0.06] text-white/40 hover:text-white transition-colors"
+                title="Audio devices"
               >
-                <ChevronDown className={cn('w-4 h-4 transition-transform', micMenuOpen && 'rotate-180')} />
+                <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', micMenuOpen && 'rotate-180')} />
               </button>
             </div>
             {micMenuOpen && (
@@ -73,15 +75,16 @@ export function ControlDock(props: Props) {
               <DockButton
                 active={props.camOn}
                 onClick={props.onToggleCam}
-                icon={props.camOn ? <Video className="w-5 h-5" /> : <VideoOff className="w-5 h-5" />}
+                icon={props.camOn ? <Video className="w-4 h-4 sm:w-5 sm:h-5" /> : <VideoOff className="w-4 h-4 sm:w-5 sm:h-5" />}
                 danger={!props.camOn}
                 label={props.camOn ? 'Stop Video' : 'Start Video'}
               />
               <button
-                onClick={() => { setCamMenuOpen((v) => !v); setMicMenuOpen(false); }}
-                className="px-1.5 border-l border-white/[0.06] text-white/40 hover:text-white transition-colors"
+                onClick={() => { setCamMenuOpen((v) => !v); setMicMenuOpen(false); setMoreMenuOpen(false); }}
+                className="hidden sm:block px-1.5 border-l border-white/[0.06] text-white/40 hover:text-white transition-colors"
+                title="Video devices"
               >
-                <ChevronDown className={cn('w-4 h-4 transition-transform', camMenuOpen && 'rotate-180')} />
+                <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', camMenuOpen && 'rotate-180')} />
               </button>
             </div>
             {camMenuOpen && (
@@ -102,30 +105,34 @@ export function ControlDock(props: Props) {
 
           <Divider />
 
-          {/* Screen Share */}
-          <DockButton
-            active={!props.isScreenSharing}
-            onClick={props.onToggleScreen}
-            icon={props.isScreenSharing ? <MonitorOff className="w-5 h-5" /> : <MonitorUp className="w-5 h-5" />}
-            highlight={props.isScreenSharing}
-            label={props.isScreenSharing ? 'Stop Share' : 'Share Screen'}
-          />
+          {/* Desktop-only: Screen Share */}
+          <div className="hidden sm:block">
+            <DockButton
+              active={!props.isScreenSharing}
+              onClick={props.onToggleScreen}
+              icon={props.isScreenSharing ? <MonitorOff className="w-5 h-5" /> : <MonitorUp className="w-5 h-5" />}
+              highlight={props.isScreenSharing}
+              label={props.isScreenSharing ? 'Stop Share' : 'Share Screen'}
+            />
+          </div>
 
-          {/* Whiteboard */}
-          <DockButton
-            active={true}
-            onClick={props.onToggleWhiteboard}
-            icon={<PenTool className="w-5 h-5" />}
-            highlight={props.whiteboardActive}
-            badge={props.whiteboardActive}
-            label="Whiteboard"
-          />
+          {/* Desktop-only: Whiteboard */}
+          <div className="hidden sm:block">
+            <DockButton
+              active={true}
+              onClick={props.onToggleWhiteboard}
+              icon={<PenTool className="w-5 h-5" />}
+              highlight={props.whiteboardActive}
+              badge={props.whiteboardActive}
+              label="Whiteboard"
+            />
+          </div>
 
           {/* Chat */}
           <DockButton
             active={true}
             onClick={props.onToggleChat}
-            icon={<MessageSquare className="w-5 h-5" />}
+            icon={<MessageSquare className="w-4 h-4 sm:w-5 sm:h-5" />}
             badge={props.unreadCount > 0}
             badgeCount={props.unreadCount}
             label="Chat"
@@ -135,19 +142,58 @@ export function ControlDock(props: Props) {
           <DockButton
             active={true}
             onClick={props.onToggleParticipants}
-            icon={<Users className="w-5 h-5" />}
+            icon={<Users className="w-4 h-4 sm:w-5 sm:h-5" />}
+            badge={props.participantCount > 1}
+            badgeCount={props.participantCount}
             label="People"
           />
 
+          {/* Mobile "More" Menu for Whiteboard & Screen Share */}
+          <div className="relative sm:hidden">
+            <DockButton
+              active={false}
+              onClick={() => setMoreMenuOpen((v) => !v)}
+              icon={<MoreHorizontal className="w-4 h-4" />}
+              highlight={props.whiteboardActive || props.isScreenSharing}
+              label="More tools"
+            />
+            {moreMenuOpen && (
+              <div
+                className="absolute bottom-full mb-3 right-0 w-48 rounded-2xl bg-[#18181b] border border-white/[0.12] shadow-2xl p-1.5 z-50 space-y-1 animate-in fade-in zoom-in-95 duration-100"
+                onClick={() => setMoreMenuOpen(false)}
+              >
+                <button
+                  onClick={props.onToggleWhiteboard}
+                  className={cn(
+                    "w-full text-left px-3 py-2 rounded-xl text-xs font-medium flex items-center gap-2.5 transition-colors",
+                    props.whiteboardActive ? "bg-emerald-500/15 text-emerald-400" : "text-white/80 hover:bg-white/5"
+                  )}
+                >
+                  <PenTool className="w-4 h-4" /> Whiteboard
+                </button>
+                <button
+                  onClick={props.onToggleScreen}
+                  className={cn(
+                    "w-full text-left px-3 py-2 rounded-xl text-xs font-medium flex items-center gap-2.5 transition-colors",
+                    props.isScreenSharing ? "bg-cyan-500/15 text-cyan-400" : "text-white/80 hover:bg-white/5"
+                  )}
+                >
+                  <MonitorUp className="w-4 h-4" /> {props.isScreenSharing ? 'Stop Screen Share' : 'Share Screen'}
+                </button>
+              </div>
+            )}
+          </div>
+
           <Divider />
 
-          {/* Leave */}
+          {/* Leave Button */}
           <button
             onClick={() => setConfirmLeave(true)}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-red-500 hover:bg-red-400 text-white font-medium text-sm transition-all shadow-lg shadow-red-500/20"
+            className="flex items-center gap-1.5 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl bg-red-500 hover:bg-red-400 text-white font-medium text-xs sm:text-sm transition-all shadow-md shadow-red-500/20 active:scale-95"
+            title="Leave Meeting"
           >
             <PhoneOff className="w-4 h-4" />
-            <span className="hidden sm:inline">Leave</span>
+            <span className="hidden md:inline">Leave</span>
           </button>
         </div>
       </div>
