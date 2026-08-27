@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
   X, Crown, Mic, MicOff, Video, VideoOff, MonitorUp,
-  UserX, Shield, Lock, Unlock, PhoneOff, MoreVertical
+  UserX, Shield, Lock, Unlock, PhoneOff, MoreVertical, Link2, Check, Copy
 } from 'lucide-react';
 import { useRoom } from '@/context/RoomContext';
 import { cn, initials } from '@/lib/utils';
@@ -30,6 +30,7 @@ export function ParticipantsDrawer({ onClose, onMuteAll, onEndMeetingForAll }: P
   const [confirmKick, setConfirmKick] = useState<PresenceState | null>(null);
   const [confirmTransfer, setConfirmTransfer] = useState<PresenceState | null>(null);
   const [copied, setCopied] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
 
   const sorted = [...participants].sort((a, b) => {
     if (a.isHost && !b.isHost) return -1;
@@ -41,6 +42,13 @@ export function ParticipantsDrawer({ onClose, onMuteAll, onEndMeetingForAll }: P
     navigator.clipboard.writeText(roomCode ?? '');
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const copyInviteLink = () => {
+    const inviteUrl = `${window.location.origin}${window.location.pathname}?room=${encodeURIComponent(roomCode ?? '')}`;
+    navigator.clipboard.writeText(inviteUrl);
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 2500);
   };
 
   const handleMute = (pId: string) => {
@@ -83,9 +91,9 @@ export function ParticipantsDrawer({ onClose, onMuteAll, onEndMeetingForAll }: P
         </button>
       </div>
 
-      {/* Room code banner */}
-      <div className="px-4 py-3 border-b border-white/[0.06]">
-        <div className="flex items-center justify-between text-xs text-white/40 mb-1.5">
+      {/* Room code & Share Link banner */}
+      <div className="px-4 py-3 border-b border-white/[0.06] space-y-2">
+        <div className="flex items-center justify-between text-xs text-white/40">
           <span>Room code</span>
           {isLocked && <span className="text-amber-400 font-medium flex items-center gap-1"><Lock className="w-3 h-3" /> Locked</span>}
         </div>
@@ -95,9 +103,21 @@ export function ParticipantsDrawer({ onClose, onMuteAll, onEndMeetingForAll }: P
             onClick={copyCode}
             className="text-xs text-white/70 hover:text-white transition-colors px-2 py-1 rounded-lg bg-white/5 hover:bg-white/10"
           >
-            {copied ? 'Copied!' : 'Copy'}
+            {copied ? 'Copied!' : 'Copy Code'}
           </button>
         </div>
+        <button
+          onClick={copyInviteLink}
+          className={cn(
+            "w-full py-2 px-3 rounded-xl border text-xs font-semibold transition-all flex items-center justify-center gap-2 shadow-sm",
+            copiedLink
+              ? "bg-emerald-500/20 border-emerald-500/30 text-emerald-300"
+              : "bg-emerald-500/10 border-emerald-500/25 text-emerald-400 hover:bg-emerald-500/20"
+          )}
+        >
+          {copiedLink ? <Check className="w-3.5 h-3.5" /> : <Link2 className="w-3.5 h-3.5" />}
+          {copiedLink ? 'Invite Link Copied!' : 'Copy Direct Invite Link'}
+        </button>
       </div>
 
       {/* Host Quick Admin Bar */}

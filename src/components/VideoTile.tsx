@@ -14,14 +14,18 @@ type Props = {
 
 export function VideoTile({ participant, stream, isLocal, isSpeaking, isPinned, onPin }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
 
   useEffect(() => {
     if (videoRef.current && stream) {
       videoRef.current.srcObject = stream;
     }
-  }, [stream]);
+    if (audioRef.current && stream && !isLocal) {
+      audioRef.current.srcObject = stream;
+    }
+  }, [stream, isLocal]);
 
-  const hasVideo = participant.isCamOn && stream?.getVideoTracks().some((t) => t.enabled);
+  const hasVideo = participant.isCamOn && stream && (isLocal || stream.getVideoTracks().length > 0);
   const isScreenSharing = participant.isScreenSharing;
 
   return (
@@ -34,6 +38,11 @@ export function VideoTile({ participant, stream, isLocal, isSpeaking, isPinned, 
         isPinned && 'ring-2 ring-emerald-400/50'
       )}
     >
+      {/* Hidden audio element for remote participants when camera is off */}
+      {!hasVideo && stream && !isLocal && (
+        <audio ref={audioRef} autoPlay playsInline />
+      )}
+
       {hasVideo ? (
         <video
           ref={videoRef}

@@ -7,16 +7,18 @@ import { supabase } from '@/lib/supabase';
 type Props = {
   roomCode: string;
   displayName: string;
-  onJoin: () => void;
+  onJoin: (finalName: string) => void;
   onCancel: () => void;
 };
 
 export function PreJoin({ roomCode, displayName, onJoin, onCancel }: Props) {
   const { state, initPreview, toggleMic, toggleCam, switchDevice, stopPreview } = useMedia();
   const videoRef = useRef<HTMLVideoElement>(null);
+  const [name, setName] = useState(displayName || localStorage.getItem('pm_user_name') || '');
   const [micOpen, setMicOpen] = useState(false);
   const [camOpen, setCamOpen] = useState(false);
   const [joining, setJoining] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [audioLevel, setAudioLevel] = useState(0);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
@@ -31,6 +33,10 @@ export function PreJoin({ roomCode, displayName, onJoin, onCancel }: Props) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (displayName) setName(displayName);
+  }, [displayName]);
 
   useEffect(() => {
     if (videoRef.current && state.localStream) {
@@ -70,13 +76,17 @@ export function PreJoin({ roomCode, displayName, onJoin, onCancel }: Props) {
   }, [state.localStream, state.micOn]);
 
   const handleJoin = async () => {
-    setJoining(true);
-    const { data } = await supabase.from('rooms').select('id').eq('code', roomCode).maybeSingle();
-    if (!data) {
-      setJoining(false);
+    setError(null);
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      setError('Please enter your name to join');
       return;
     }
-    onJoin();
+    setJoining(true);
+    localStorage.setItem('pm_user_name', trimmedName);
+    const { data } = await supabase.from('rooms').select('id').eq('code', roomCode).maybeSingle();
+    setJoining(false);
+    onJoin(trimmedName);
   };
 
   return (
@@ -87,15 +97,15 @@ export function PreJoin({ roomCode, displayName, onJoin, onCancel }: Props) {
 
       <div className="relative w-full max-w-lg">
         <div className="text-center mb-6">
-          <h1 className="text-2xl font-bold mb-1">Ready to join?</h1>
+          <h1 className="text-2xl font-bold mb-1">Ready to join meeting?</h1>
           <p className="text-white/40 text-sm">
-            Room <span className="font-mono text-emerald-400">{roomCode}</span> · Joining as <span className="text-white/70">{displayName}</span>
+            Room Code: <span className="font-mono text-emerald-400 font-medium">{roomCode}</span>
           </p>
         </div>
 
-        <div className="rounded-2xl bg-[#121215]/80 backdrop-blur-xl border border-white/[0.08] p-6 shadow-2xl">
+        <div className="rounded-2xl bg-[#121215]/80 backdrop-blur-xl border border-white/[0.08] p-6 shadow-2xl space-y-4">
           {/* Preview */}
-          <div className="relative aspect-video rounded-xl overflow-hidden bg-[#18181b] mb-4">
+          <div className="relative aspect-video rounded-xl overflow-hidden bg-[#18181b]">
             {state.localStream && state.camOn ? (
               <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover -scale-x-100" />
             ) : (
@@ -104,8 +114,8 @@ export function PreJoin({ roomCode, displayName, onJoin, onCancel }: Props) {
                   <p className="text-red-400 text-sm px-4 text-center">{state.error}</p>
                 ) : (
                   <>
-                    <div className="w-20 h-20 rounded-full bg-gradient-to-br from-emerald-400 to-cyan-500 flex items-center justify-center text-2xl font-bold mb-2">
-                      {displayName.slice(0, 2).toUpperCase()}
+                    <div className="w-20 h-20 rounded-full bg-gradient-to-br from-emerald-400 to-cyan-500 flex items-center justify-center text-2xl font-bold mb-2 shadow-lg">
+                      {(name || 'G').slice(0, 2).toUpperCase()}
                     </div>
                     <p className="text-white/30 text-sm">Camera is off</p>
                   </>
@@ -125,8 +135,25 @@ export function PreJoin({ roomCode, displayName, onJoin, onCancel }: Props) {
             )}
           </div>
 
+          {/* Display Name Input */}
+          <div>
+            <label className="block text-xs font-medium text-white/60 mb-1.5">Your Display Name</label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => {
+                setName(e.target.value);
+                if (error) setError(null);
+              }}
+              placeholder="e.g. John Doe"
+              maxLength={32}
+              className="w-full px-4 py-2.5 rounded-xl bg-[#18181b] border border-white/[0.08] text-white text-sm focus:outline-none focus:border-emerald-500/50 transition-colors placeholder:text-white/20"
+            />
+            {error && <p className="text-xs text-red-400 mt-1">{error}</p>}
+          </div>
+
           {/* Controls */}
-          <div className="flex items-center justify-center gap-3 mb-4">
+          <div className="flex items-center justify-center gap-3">
             {/* Mic control with dropdown */}
             <div className="relative">
               <div className="flex items-center rounded-xl bg-[#18181b] border border-white/[0.08] overflow-hidden">
@@ -136,6 +163,7 @@ export function PreJoin({ roomCode, displayName, onJoin, onCancel }: Props) {
                     'p-3 transition-colors',
                     state.micOn ? 'text-white hover:bg-white/5' : 'text-red-400 hover:bg-red-500/10'
                   )}
+                  title={state.micOn ? 'Mute Mic' : 'Unmute Mic'}
                 >
                   {state.micOn ? <Mic className="w-5 h-5" /> : <MicOff className="w-5 h-5" />}
                 </button>
@@ -175,6 +203,7 @@ export function PreJoin({ roomCode, displayName, onJoin, onCancel }: Props) {
                     'p-3 transition-colors',
                     state.camOn ? 'text-white hover:bg-white/5' : 'text-red-400 hover:bg-red-500/10'
                   )}
+                  title={state.camOn ? 'Turn off camera' : 'Turn on camera'}
                 >
                   {state.camOn ? <Video className="w-5 h-5" /> : <VideoOff className="w-5 h-5" />}
                 </button>
@@ -207,7 +236,7 @@ export function PreJoin({ roomCode, displayName, onJoin, onCancel }: Props) {
           </div>
 
           {/* Actions */}
-          <div className="flex gap-3">
+          <div className="flex gap-3 pt-2">
             <button
               onClick={onCancel}
               className="flex-1 py-3 rounded-xl bg-[#18181b] border border-white/[0.08] text-white/70 hover:text-white text-sm font-medium transition-colors"
@@ -217,7 +246,7 @@ export function PreJoin({ roomCode, displayName, onJoin, onCancel }: Props) {
             <button
               onClick={handleJoin}
               disabled={joining || !!state.error}
-              className="flex-1 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-semibold transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 disabled:opacity-50"
+              className="flex-1 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black text-sm font-semibold transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 disabled:opacity-50"
             >
               {joining ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
               {joining ? 'Joining…' : 'Join Now'}

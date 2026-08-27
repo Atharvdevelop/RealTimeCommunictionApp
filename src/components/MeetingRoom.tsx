@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { Video, Copy, Check, Clock, ShieldAlert, Info, Crown, MicOff, UserX, AlertTriangle } from 'lucide-react';
+import { Video, Copy, Check, Clock, ShieldAlert, Info, Crown, MicOff, UserX, AlertTriangle, Link2, Share2 } from 'lucide-react';
 import { useRoom } from '@/context/RoomContext';
 import { useMedia } from '@/hooks/useMedia';
+import { useWebRTC } from '@/hooks/useWebRTC';
 import { VideoTile } from '@/components/VideoTile';
 import { ControlDock } from '@/components/ControlDock';
 import { ChatDrawer } from '@/components/ChatDrawer';
@@ -32,11 +33,21 @@ export function MeetingRoom({ roomCode, displayName, roomDbId, isCreator, onLeav
     updatePresence,
     isHost,
     userId,
+    channel,
     muteAllParticipants,
     endMeetingForAll,
     registerAdminHandlers,
   } = useRoom();
   const { state, initPreview, toggleMic, toggleCam, startScreenShare, stopScreenShare, stopPreview } = useMedia();
+
+  const { remoteStreams } = useWebRTC({
+    channel,
+    localStream: state.localStream,
+    screenStream: state.screenStream,
+    isScreenSharing: state.isScreenSharing,
+    userId,
+    participants,
+  });
 
   const [chatOpen, setChatOpen] = useState(false);
   const [participantsOpen, setParticipantsOpen] = useState(false);
@@ -44,6 +55,7 @@ export function MeetingRoom({ roomCode, displayName, roomDbId, isCreator, onLeav
   const [unreadCount, setUnreadCount] = useState(0);
   const [pinnedId, setPinnedId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [roomReady, setRoomReady] = useState(false);
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -190,7 +202,16 @@ export function MeetingRoom({ roomCode, displayName, roomDbId, isCreator, onLeav
   const copyCode = () => {
     navigator.clipboard.writeText(roomCode);
     setCopied(true);
+    addToast(`Room code ${roomCode} copied!`, 'info');
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const copyInviteLink = () => {
+    const inviteUrl = `${window.location.origin}${window.location.pathname}?room=${encodeURIComponent(roomCode)}`;
+    navigator.clipboard.writeText(inviteUrl);
+    setCopiedLink(true);
+    addToast('Meeting invite link copied to clipboard! 🔗', 'success');
+    setTimeout(() => setCopiedLink(false), 2500);
   };
 
   const formatElapsed = (s: number) => {
@@ -231,8 +252,7 @@ export function MeetingRoom({ roomCode, displayName, roomDbId, isCreator, onLeav
     if (p.id === userId) {
       return state.isScreenSharing ? state.screenStream : state.localStream;
     }
-    // Remote streams not available in browser-only mode (no WebRTC server)
-    return null;
+    return remoteStreams[p.id] || null;
   };
 
   // Grid columns based on count
@@ -279,22 +299,40 @@ export function MeetingRoom({ roomCode, displayName, roomDbId, isCreator, onLeav
       {/* Top bar */}
       <div className="flex items-center justify-between px-4 py-2.5 bg-[#121215]/80 backdrop-blur-xl border-b border-white/[0.06] z-30">
         <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-emerald-400 to-cyan-500 flex items-center justify-center">
+          <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-emerald-400 to-cyan-500 flex items-center justify-center shadow-md">
             <Video className="w-4 h-4 text-white" />
           </div>
           <span className="font-bold text-white text-sm hidden sm:inline">PulseMeet</span>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
           <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#18181b] border border-white/[0.06]">
             <Clock className="w-3.5 h-3.5 text-white/40" />
             <span className="text-sm text-white/70 font-mono tabular-nums">{formatElapsed(elapsed)}</span>
           </div>
+
+          {/* Share Link Button */}
+          <button
+            onClick={copyInviteLink}
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all shadow-sm",
+              copiedLink
+                ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-300"
+                : "bg-emerald-500/10 border-emerald-500/25 text-emerald-400 hover:bg-emerald-500/20"
+            )}
+            title="Copy shareable meeting invite link"
+          >
+            {copiedLink ? <Check className="w-3.5 h-3.5" /> : <Link2 className="w-3.5 h-3.5" />}
+            <span>{copiedLink ? 'Link Copied!' : 'Share Link'}</span>
+          </button>
+
+          {/* Room Code */}
           <button
             onClick={copyCode}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#18181b] border border-white/[0.06] hover:border-white/10 transition-colors"
+            className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#18181b] border border-white/[0.06] hover:border-white/10 text-white/70 hover:text-white transition-colors"
+            title="Copy room code"
           >
-            <span className="font-mono text-sm text-emerald-400">{roomCode}</span>
+            <span className="font-mono text-sm text-white/80">{roomCode}</span>
             {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-white/40" />}
           </button>
         </div>
