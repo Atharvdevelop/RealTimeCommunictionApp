@@ -12,10 +12,12 @@ function AppInner() {
   const [roomCode, setRoomCode] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [roomDbId, setRoomDbId] = useState<string | null>(null);
+  const [isCreator, setIsCreator] = useState(false);
 
-  const handleEnterRoom = useCallback((code: string, name: string) => {
+  const handleEnterRoom = useCallback((code: string, name: string, creator: boolean) => {
     setRoomCode(code);
     setDisplayName(name);
+    setIsCreator(creator);
     setAppState('prejoin');
   }, []);
 
@@ -24,13 +26,14 @@ function AppInner() {
     const { data } = await supabase.from('rooms').select('id').eq('code', roomCode).maybeSingle();
     setRoomDbId(data?.id || `room_${roomCode}`);
     setAppState('meeting');
-  }, [roomCode, displayName]);
+  }, [roomCode]);
 
   const handleLeave = useCallback(() => {
     setAppState('lobby');
     setRoomCode('');
     setDisplayName('');
     setRoomDbId(null);
+    setIsCreator(false);
   }, []);
 
   if (appState === 'lobby') {
@@ -61,6 +64,7 @@ function AppInner() {
       roomCode={roomCode}
       displayName={displayName}
       roomDbId={roomDbId}
+      isCreator={isCreator}
       onLeave={handleLeave}
     />
   );

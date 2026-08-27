@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase';
 import { generateRoomCode, cn } from '@/lib/utils';
 
 type Props = {
-  onEnterRoom: (roomCode: string, name: string) => void;
+  onEnterRoom: (roomCode: string, name: string, isCreator: boolean) => void;
 };
 
 export function Lobby({ onEnterRoom }: Props) {
@@ -36,7 +36,7 @@ export function Lobby({ onEnterRoom }: Props) {
       return;
     }
     setGeneratedCode(code);
-    onEnterRoom(code, name.trim());
+    onEnterRoom(code, name.trim(), true);
   };
 
   const handleJoin = async () => {
@@ -64,7 +64,7 @@ export function Lobby({ onEnterRoom }: Props) {
       setError('Incorrect passcode');
       return;
     }
-    onEnterRoom(data.code, name.trim());
+    onEnterRoom(data.code, name.trim(), false);
   };
 
   const copyCode = () => {

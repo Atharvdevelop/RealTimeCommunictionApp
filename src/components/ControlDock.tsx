@@ -20,6 +20,8 @@ type Props = {
   onToggleParticipants: () => void;
   participantCount: number;
   onLeave: () => void;
+  isHost?: boolean;
+  onEndMeetingForAll?: () => void;
 };
 
 export function ControlDock(props: Props) {
@@ -160,22 +162,47 @@ export function ControlDock(props: Props) {
               </div>
               <div>
                 <h3 className="font-semibold text-white">Leave the meeting?</h3>
-                <p className="text-sm text-white/40">You can rejoin anytime with the room code.</p>
+                <p className="text-sm text-white/40">
+                  {props.isHost
+                    ? 'As the host, you can leave or end the meeting for everyone.'
+                    : 'You can rejoin anytime with the room code.'}
+                </p>
               </div>
             </div>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setConfirmLeave(false)}
-                className="flex-1 py-2.5 rounded-xl bg-[#18181b] border border-white/[0.08] text-white/70 hover:text-white text-sm font-medium transition-colors"
-              >
-                Stay
-              </button>
-              <button
-                onClick={() => { setConfirmLeave(false); props.onLeave(); }}
-                className="flex-1 py-2.5 rounded-xl bg-red-500 hover:bg-red-400 text-white text-sm font-semibold transition-colors"
-              >
-                Leave Now
-              </button>
+            <div className="flex flex-col gap-2">
+              {props.isHost && props.onEndMeetingForAll && (
+                <button
+                  onClick={() => {
+                    setConfirmLeave(false);
+                    props.onEndMeetingForAll?.();
+                  }}
+                  className="w-full py-2.5 rounded-xl bg-red-500 hover:bg-red-400 text-white text-sm font-semibold transition-colors shadow-lg shadow-red-500/20"
+                >
+                  End Meeting for All
+                </button>
+              )}
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setConfirmLeave(false)}
+                  className="flex-1 py-2.5 rounded-xl bg-[#18181b] border border-white/[0.08] text-white/70 hover:text-white text-sm font-medium transition-colors"
+                >
+                  Stay
+                </button>
+                <button
+                  onClick={() => {
+                    setConfirmLeave(false);
+                    props.onLeave();
+                  }}
+                  className={cn(
+                    "flex-1 py-2.5 rounded-xl text-sm font-semibold transition-colors",
+                    props.isHost
+                      ? "bg-white/10 hover:bg-white/15 text-white"
+                      : "bg-red-500 hover:bg-red-400 text-white shadow-md shadow-red-500/20"
+                  )}
+                >
+                  {props.isHost ? 'Leave Only' : 'Leave Now'}
+                </button>
+              </div>
             </div>
           </div>
         </div>

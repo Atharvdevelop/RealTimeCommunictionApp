@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { Video, Copy, Check, Clock } from 'lucide-react';
+import { Video, Copy, Check, Clock, ShieldAlert, Info, Crown, MicOff, UserX, AlertTriangle } from 'lucide-react';
 import { useRoom } from '@/context/RoomContext';
 import { useMedia } from '@/hooks/useMedia';
-import { supabase } from '@/lib/supabase';
 import { VideoTile } from '@/components/VideoTile';
 import { ControlDock } from '@/components/ControlDock';
 import { ChatDrawer } from '@/components/ChatDrawer';
@@ -11,15 +10,32 @@ import { Whiteboard } from '@/components/Whiteboard';
 import { cn } from '@/lib/utils';
 import type { PresenceState } from '@/lib/types';
 
+type Toast = {
+  id: string;
+  message: string;
+  type: 'info' | 'warning' | 'danger' | 'success';
+};
+
 type Props = {
   roomCode: string;
   displayName: string;
   roomDbId: string;
+  isCreator?: boolean;
   onLeave: () => void;
 };
 
-export function MeetingRoom({ roomCode, displayName, roomDbId, onLeave }: Props) {
-  const { joinRoom, leaveRoom, participants, updatePresence, remoteCursors, isHost, userId } = useRoom();
+export function MeetingRoom({ roomCode, displayName, roomDbId, isCreator, onLeave }: Props) {
+  const {
+    joinRoom,
+    leaveRoom,
+    participants,
+    updatePresence,
+    isHost,
+    userId,
+    muteAllParticipants,
+    endMeetingForAll,
+    registerAdminHandlers,
+  } = useRoom();
   const { state, initPreview, toggleMic, toggleCam, startScreenShare, stopScreenShare, stopPreview } = useMedia();
 
   const [chatOpen, setChatOpen] = useState(false);
@@ -30,16 +46,27 @@ export function MeetingRoom({ roomCode, displayName, roomDbId, onLeave }: Props)
   const [copied, setCopied] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [roomReady, setRoomReady] = useState(false);
+  const [toasts, setToasts] = useState<Toast[]>([]);
+  const [terminationModal, setTerminationModal] = useState<{ title: string; desc: string } | null>(null);
+
   const audioCtxRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const rafRef = useRef<number>(0);
   const [speakingId, setSpeakingId] = useState<string | null>(null);
 
+  const addToast = useCallback((message: string, type: Toast['type'] = 'info') => {
+    const id = Math.random().toString(36).slice(2);
+    setToasts((prev) => [...prev, { id, message, type }]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 4000);
+  }, []);
+
   // Join room + init media
   useEffect(() => {
     if (!roomDbId) return;
     initPreview().then(() => {
-      joinRoom(roomCode, roomDbId, displayName);
+      joinRoom(roomCode, roomDbId, displayName, isCreator);
       setRoomReady(true);
     });
     return () => {
@@ -50,6 +77,42 @@ export function MeetingRoom({ roomCode, displayName, roomDbId, onLeave }: Props)
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomDbId]);
+
+  // Register remote admin command handlers
+  useEffect(() => {
+    const unbind = registerAdminHandlers({
+      onMuted: () => {
+        if (state.micOn) {
+          toggleMic();
+        }
+        addToast('You were muted by the meeting host.', 'warning');
+      },
+      onKicked: (reason) => {
+        stopPreview();
+        leaveRoom();
+        setTerminationModal({
+          title: 'Removed from Meeting',
+          desc: reason || 'The host has removed you from this meeting.',
+        });
+      },
+      onMeetingEnded: () => {
+        stopPreview();
+        leaveRoom();
+        setTerminationModal({
+          title: 'Meeting Ended',
+          desc: 'The host has ended this meeting for all participants.',
+        });
+      },
+      onHostTransferred: (isNewHost) => {
+        if (isNewHost) {
+          addToast('You are now the meeting host! 👑', 'success');
+        } else {
+          addToast('Host permissions have been transferred.', 'info');
+        }
+      },
+    });
+    return unbind;
+  }, [registerAdminHandlers, state.micOn, toggleMic, stopPreview, leaveRoom, addToast]);
 
   // Timer
   useEffect(() => {
@@ -113,17 +176,10 @@ export function MeetingRoom({ roomCode, displayName, roomDbId, onLeave }: Props)
   }, [state.isScreenSharing, startScreenShare, stopScreenShare]);
 
   const handleMuteAll = useCallback(() => {
-    // Broadcast mute-all to other participants
-    if (roomDbId) {
-      supabase.channel(`room:${roomDbId}`).send({
-        type: 'broadcast',
-        event: 'mute-all',
-        payload: {},
-      });
-    }
-    // Mute local
+    muteAllParticipants();
     if (state.micOn) toggleMic();
-  }, [roomDbId, state.micOn, toggleMic]);
+    addToast('Muted all participants in the meeting', 'info');
+  }, [muteAllParticipants, state.micOn, toggleMic, addToast]);
 
   const handleLeave = useCallback(() => {
     stopPreview();
@@ -197,7 +253,29 @@ export function MeetingRoom({ roomCode, displayName, roomDbId, onLeave }: Props)
   }
 
   return (
-    <div className="h-screen w-screen bg-[#09090b] overflow-hidden flex flex-col">
+    <div className="h-screen w-screen bg-[#09090b] overflow-hidden flex flex-col relative">
+      {/* Toast Notification Container */}
+      <div className="fixed top-14 left-1/2 -translate-x-1/2 z-50 flex flex-col gap-2 pointer-events-none w-full max-w-sm px-4">
+        {toasts.map((t) => (
+          <div
+            key={t.id}
+            className={cn(
+              "px-4 py-2.5 rounded-xl border backdrop-blur-xl shadow-2xl text-xs font-medium flex items-center gap-2.5 pointer-events-auto transition-all animate-in fade-in slide-in-from-top-2 duration-200",
+              t.type === 'warning' && "bg-amber-500/15 border-amber-500/30 text-amber-300",
+              t.type === 'danger' && "bg-red-500/15 border-red-500/30 text-red-300",
+              t.type === 'success' && "bg-emerald-500/15 border-emerald-500/30 text-emerald-300",
+              t.type === 'info' && "bg-[#18181b]/90 border-white/[0.12] text-white"
+            )}
+          >
+            {t.type === 'warning' && <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />}
+            {t.type === 'danger' && <ShieldAlert className="w-4 h-4 text-red-400 shrink-0" />}
+            {t.type === 'success' && <Crown className="w-4 h-4 text-emerald-400 shrink-0" />}
+            {t.type === 'info' && <Info className="w-4 h-4 text-cyan-400 shrink-0" />}
+            <span className="flex-1">{t.message}</span>
+          </div>
+        ))}
+      </div>
+
       {/* Top bar */}
       <div className="flex items-center justify-between px-4 py-2.5 bg-[#121215]/80 backdrop-blur-xl border-b border-white/[0.06] z-30">
         <div className="flex items-center gap-2.5">
@@ -279,7 +357,11 @@ export function MeetingRoom({ roomCode, displayName, roomDbId, onLeave }: Props)
           <div className="w-full max-w-xs sm:w-80 z-40 h-full">
             {chatOpen && <ChatDrawer onClose={() => setChatOpen(false)} onRead={() => setUnreadCount(0)} />}
             {participantsOpen && !chatOpen && (
-              <ParticipantsDrawer onClose={() => setParticipantsOpen(false)} onMuteAll={handleMuteAll} />
+              <ParticipantsDrawer
+                onClose={() => setParticipantsOpen(false)}
+                onMuteAll={handleMuteAll}
+                onEndMeetingForAll={isHost ? endMeetingForAll : undefined}
+              />
             )}
           </div>
         )}
@@ -300,10 +382,36 @@ export function MeetingRoom({ roomCode, displayName, roomDbId, onLeave }: Props)
         onToggleParticipants={() => { setParticipantsOpen((v) => !v); setChatOpen(false); }}
         participantCount={participants.length}
         onLeave={handleLeave}
+        isHost={isHost}
+        onEndMeetingForAll={endMeetingForAll}
       />
 
       {/* Whiteboard overlay */}
       {whiteboardOpen && <Whiteboard onClose={() => setWhiteboardOpen(false)} />}
+
+      {/* Termination Modal (Kicked / Meeting Ended) */}
+      {terminationModal && (
+        <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-[#121215] border border-white/[0.1] rounded-2xl p-6 max-w-sm w-full shadow-2xl text-center space-y-4 animate-in fade-in zoom-in-95 duration-150">
+            <div className="w-12 h-12 rounded-2xl bg-red-500/15 text-red-400 flex items-center justify-center mx-auto shadow-lg shadow-red-500/10">
+              <ShieldAlert className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-white">{terminationModal.title}</h3>
+              <p className="text-xs text-white/50 mt-1">{terminationModal.desc}</p>
+            </div>
+            <button
+              onClick={() => {
+                setTerminationModal(null);
+                onLeave();
+              }}
+              className="w-full py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black text-sm font-semibold transition-colors"
+            >
+              Return to Lobby
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
