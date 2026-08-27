@@ -53,28 +53,13 @@ export function useWebRTC({
     const pc = new RTCPeerConnection(RTC_CONFIG);
     peersRef.current.set(peerId, pc);
 
-    // Pre-create transceivers so audio and video m-lines exist in SDP negotiation
-    try {
-      pc.addTransceiver('audio', { direction: 'sendrecv' });
-      pc.addTransceiver('video', { direction: 'sendrecv' });
-    } catch {
-      // ignore
-    }
-
-    // Attach active tracks to transceivers / senders
+    // Attach active local tracks to peer connection
     if (activeStreamRef.current) {
       activeStreamRef.current.getTracks().forEach((track) => {
-        const transceiver = pc.getTransceivers().find(
-          (t) => t.sender.track?.kind === track.kind || t.receiver.track.kind === track.kind
-        );
-        if (transceiver) {
-          transceiver.sender.replaceTrack(track).catch(() => {});
-        } else {
-          try {
-            pc.addTrack(track, activeStreamRef.current!);
-          } catch {
-            // track already added
-          }
+        try {
+          pc.addTrack(track, activeStreamRef.current!);
+        } catch {
+          // ignore if already added
         }
       });
     }
@@ -99,35 +84,30 @@ export function useWebRTC({
 
     // Remote track received
     pc.ontrack = (event) => {
-      const [stream] = event.streams;
-      if (stream) {
-        setRemoteStreams((prev) => ({
+      setRemoteStreams((prev) => {
+        const existingStream = prev[peerId];
+        const existingTracks = existingStream ? existingStream.getTracks() : [];
+        const incomingTracks = event.streams && event.streams[0] ? event.streams[0].getTracks() : [event.track];
+        
+        // Merge unique tracks
+        const trackMap = new Map<string, MediaStreamTrack>();
+        existingTracks.forEach((t) => trackMap.set(t.id, t));
+        incomingTracks.forEach((t) => trackMap.set(t.id, t));
+        
+        return {
           ...prev,
-          [peerId]: stream,
-        }));
-      } else if (event.track) {
-        setRemoteStreams((prev) => {
-          const existing = prev[peerId] || new MediaStream();
-          if (!existing.getTracks().some((t) => t.id === event.track.id)) {
-            existing.addTrack(event.track);
-          }
-          return {
-            ...prev,
-            [peerId]: new MediaStream(existing.getTracks()),
-          };
-        });
-      }
+          [peerId]: new MediaStream(Array.from(trackMap.values())),
+        };
+      });
     };
 
     pc.onconnectionstatechange = () => {
-      if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed' || pc.connectionState === 'closed') {
-        if (pc.connectionState === 'closed' || pc.connectionState === 'failed') {
-          setRemoteStreams((prev) => {
-            const next = { ...prev };
-            delete next[peerId];
-            return next;
-          });
-        }
+      if (pc.connectionState === 'closed' || pc.connectionState === 'failed') {
+        setRemoteStreams((prev) => {
+          const next = { ...prev };
+          delete next[peerId];
+          return next;
+        });
       }
     };
 
@@ -183,7 +163,11 @@ export function useWebRTC({
           // Process queued ICE candidates
           const queued = pendingCandidatesRef.current.get(peerId) || [];
           for (const cand of queued) {
-            await pc.addIceCandidate(new RTCIceCandidate(cand));
+            try {
+              await pc.addIceCandidate(new RTCIceCandidate(cand));
+            } catch (e) {
+              console.warn('[WebRTC] Error adding queued candidate:', e);
+            }
           }
           pendingCandidatesRef.current.delete(peerId);
 
@@ -210,16 +194,23 @@ export function useWebRTC({
             // Process queued candidates
             const queued = pendingCandidatesRef.current.get(peerId) || [];
             for (const cand of queued) {
-              await pc.addIceCandidate(new RTCIceCandidate(cand));
+              try {
+                await pc.addIceCandidate(new RTCIceCandidate(cand));
+              } catch (e) {
+                console.warn('[WebRTC] Error adding queued candidate on answer:', e);
+              }
             }
             pendingCandidatesRef.current.delete(peerId);
           }
         } else if (signal.type === 'candidate' && signal.candidate) {
           const pc = peersRef.current.get(peerId);
           if (pc && pc.remoteDescription && pc.remoteDescription.type) {
-            await pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
+            try {
+              await pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
+            } catch (e) {
+              console.warn('[WebRTC] Error adding candidate:', e);
+            }
           } else {
-            // Queue candidate until remote description is set
             const current = pendingCandidatesRef.current.get(peerId) || [];
             current.push(signal.candidate);
             pendingCandidatesRef.current.set(peerId, current);
@@ -244,7 +235,7 @@ export function useWebRTC({
     const remoteParticipants = participants.filter((p) => p.id !== userId);
 
     remoteParticipants.forEach((p) => {
-      // Polite peer initiation rule: peer with alphabetically higher ID sends offer
+      // Deterministic initiator: peer with alphabetically higher ID initiates call
       if (userId > p.id) {
         if (!peersRef.current.has(p.id)) {
           callPeer(p.id);
@@ -272,17 +263,16 @@ export function useWebRTC({
     if (!activeStream) return;
 
     peersRef.current.forEach((pc) => {
+      const senders = pc.getSenders();
       activeStream.getTracks().forEach((track) => {
-        const transceiver = pc.getTransceivers().find(
-          (t) => t.sender.track?.kind === track.kind || t.receiver.track.kind === track.kind
-        );
-        if (transceiver) {
-          transceiver.sender.replaceTrack(track).catch(() => {});
+        const sender = senders.find((s) => s.track?.kind === track.kind);
+        if (sender) {
+          sender.replaceTrack(track).catch(() => {});
         } else {
           try {
             pc.addTrack(track, activeStream);
           } catch {
-            // track might already be added
+            // track already added
           }
         }
       });
