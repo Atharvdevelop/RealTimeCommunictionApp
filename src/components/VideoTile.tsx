@@ -13,20 +13,52 @@ type Props = {
 };
 
 export function VideoTile({ participant, stream, isLocal, isSpeaking, isPinned, onPin }: Props) {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const audioRef = useRef<HTMLAudioElement>(null);
-
-  useEffect(() => {
-    if (videoRef.current && stream) {
-      videoRef.current.srcObject = stream;
-    }
-    if (audioRef.current && stream && !isLocal) {
-      audioRef.current.srcObject = stream;
-    }
-  }, [stream, isLocal]);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const hasVideo = participant.isCamOn && stream && (isLocal || stream.getVideoTracks().length > 0);
   const isScreenSharing = participant.isScreenSharing;
+
+  // Callback ref for video element to ensure srcObject is set as soon as <video> mounts
+  const setVideoRef = (el: HTMLVideoElement | null) => {
+    videoRef.current = el;
+    if (el && stream) {
+      if (el.srcObject !== stream) {
+        el.srcObject = stream;
+      }
+      el.play().catch(() => {});
+    }
+  };
+
+  // Callback ref for audio element
+  const setAudioRef = (el: HTMLAudioElement | null) => {
+    audioRef.current = el;
+    if (el && stream && !isLocal) {
+      if (el.srcObject !== stream) {
+        el.srcObject = stream;
+      }
+      el.play().catch(() => {});
+    }
+  };
+
+  // Also sync when stream or hasVideo changes
+  useEffect(() => {
+    if (videoRef.current && stream) {
+      if (videoRef.current.srcObject !== stream) {
+        videoRef.current.srcObject = stream;
+      }
+      videoRef.current.play().catch(() => {});
+    }
+  }, [stream, hasVideo]);
+
+  useEffect(() => {
+    if (audioRef.current && stream && !isLocal) {
+      if (audioRef.current.srcObject !== stream) {
+        audioRef.current.srcObject = stream;
+      }
+      audioRef.current.play().catch(() => {});
+    }
+  }, [stream, isLocal]);
 
   return (
     <div
@@ -38,14 +70,14 @@ export function VideoTile({ participant, stream, isLocal, isSpeaking, isPinned, 
         isPinned && 'ring-2 ring-emerald-400/50'
       )}
     >
-      {/* Hidden audio element for remote participants when camera is off */}
-      {!hasVideo && stream && !isLocal && (
-        <audio ref={audioRef} autoPlay playsInline />
+      {/* Background audio element for remote participants to guarantee continuous audio */}
+      {!isLocal && stream && (
+        <audio ref={setAudioRef} autoPlay playsInline className="hidden" />
       )}
 
       {hasVideo ? (
         <video
-          ref={videoRef}
+          ref={setVideoRef}
           autoPlay
           muted={isLocal}
           playsInline
@@ -55,7 +87,7 @@ export function VideoTile({ participant, stream, isLocal, isSpeaking, isPinned, 
         <div className="w-full h-full flex items-center justify-center">
           <div
             className="w-20 h-20 rounded-full flex items-center justify-center text-2xl font-bold text-white shadow-lg"
-            style={{ background: `linear-gradient(135deg, ${participant.avatarColor}, ${participant.avatarColor}99)` }}
+            style={{ background: `linear-gradient(135deg, ${participant.avatarColor || '#10b981'}, ${participant.avatarColor || '#10b981'}99)` }}
           >
             {initials(participant.name)}
           </div>

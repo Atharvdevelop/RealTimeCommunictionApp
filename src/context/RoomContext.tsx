@@ -61,6 +61,7 @@ export function RoomProvider({ children }: { children: ReactNode }) {
   const [remoteCursors, setRemoteCursors] = useState<Record<string, RemoteCursor>>({});
   const [isHost, setIsHost] = useState(false);
   const [isLocked, setIsLocked] = useState(false);
+  const [channel, setChannel] = useState<RealtimeChannel | null>(null);
 
   const channelRef = useRef<RealtimeChannel | null>(null);
   const presenceRef = useRef<PresenceState | null>(null);
@@ -108,7 +109,10 @@ export function RoomProvider({ children }: { children: ReactNode }) {
     presenceRef.current = presence;
 
     const ch = supabase.channel(`room:${dbId}`, {
-      config: { presence: { key: userIdRef.current } },
+      config: {
+        presence: { key: userIdRef.current },
+        broadcast: { ack: false, self: false },
+      },
     });
 
     ch.on('presence', { event: 'sync' }, () => {
@@ -216,6 +220,7 @@ export function RoomProvider({ children }: { children: ReactNode }) {
     });
 
     channelRef.current = ch;
+    setChannel(ch);
   }, [avatarColor]);
 
   const leaveRoom = useCallback(() => {
@@ -224,6 +229,7 @@ export function RoomProvider({ children }: { children: ReactNode }) {
       supabase.removeChannel(channelRef.current);
       channelRef.current = null;
     }
+    setChannel(null);
     presenceRef.current = null;
     setRoomId(null);
     setRoomCode(null);
@@ -348,7 +354,7 @@ export function RoomProvider({ children }: { children: ReactNode }) {
         userId,
         userName,
         avatarColor,
-        channel: channelRef.current,
+        channel,
         participants,
         remoteCursors,
         setUserName,

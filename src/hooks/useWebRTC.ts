@@ -9,6 +9,9 @@ const RTC_CONFIG: RTCConfiguration = {
     { urls: 'stun:stun2.l.google.com:19302' },
     { urls: 'stun:stun3.l.google.com:19302' },
     { urls: 'stun:stun4.l.google.com:19302' },
+    { urls: 'stun:stun.cloudflare.com:3478' },
+    { urls: 'stun:stun.services.mozilla.com' },
+    { urls: 'stun:global.stun.twilio.com:3478' },
   ],
   iceCandidatePoolSize: 10,
 };
@@ -50,10 +53,29 @@ export function useWebRTC({
     const pc = new RTCPeerConnection(RTC_CONFIG);
     peersRef.current.set(peerId, pc);
 
-    // Add local tracks to peer connection
+    // Pre-create transceivers so audio and video m-lines exist in SDP negotiation
+    try {
+      pc.addTransceiver('audio', { direction: 'sendrecv' });
+      pc.addTransceiver('video', { direction: 'sendrecv' });
+    } catch {
+      // ignore
+    }
+
+    // Attach active tracks to transceivers / senders
     if (activeStreamRef.current) {
       activeStreamRef.current.getTracks().forEach((track) => {
-        pc.addTrack(track, activeStreamRef.current!);
+        const transceiver = pc.getTransceivers().find(
+          (t) => t.sender.track?.kind === track.kind || t.receiver.track.kind === track.kind
+        );
+        if (transceiver) {
+          transceiver.sender.replaceTrack(track).catch(() => {});
+        } else {
+          try {
+            pc.addTrack(track, activeStreamRef.current!);
+          } catch {
+            // track already added
+          }
+        }
       });
     }
 
@@ -91,7 +113,7 @@ export function useWebRTC({
           }
           return {
             ...prev,
-            [peerId]: existing,
+            [peerId]: new MediaStream(existing.getTracks()),
           };
         });
       }
@@ -99,8 +121,7 @@ export function useWebRTC({
 
     pc.onconnectionstatechange = () => {
       if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed' || pc.connectionState === 'closed') {
-        // Clean up remote stream if closed
-        if (pc.connectionState === 'closed') {
+        if (pc.connectionState === 'closed' || pc.connectionState === 'failed') {
           setRemoteStreams((prev) => {
             const next = { ...prev };
             delete next[peerId];
@@ -212,7 +233,7 @@ export function useWebRTC({
     channel.on('broadcast', { event: 'webrtc:signal' }, handleSignal);
 
     return () => {
-      // Channel cleanup listener handled by Supabase
+      // Supabase handles listener removal on channel unsubscribe
     };
   }, [channel, userId, createPeerConnection]);
 
@@ -251,11 +272,12 @@ export function useWebRTC({
     if (!activeStream) return;
 
     peersRef.current.forEach((pc) => {
-      const senders = pc.getSenders();
       activeStream.getTracks().forEach((track) => {
-        const sender = senders.find((s) => s.track && s.track.kind === track.kind);
-        if (sender) {
-          sender.replaceTrack(track);
+        const transceiver = pc.getTransceivers().find(
+          (t) => t.sender.track?.kind === track.kind || t.receiver.track.kind === track.kind
+        );
+        if (transceiver) {
+          transceiver.sender.replaceTrack(track).catch(() => {});
         } else {
           try {
             pc.addTrack(track, activeStream);
