@@ -164,6 +164,14 @@ export function useMedia() {
     }
   }, [state.micOn, state.camOn]);
 
+  const stopScreenShare = useCallback(() => {
+    if (screenStreamRef.current) {
+      screenStreamRef.current.getTracks().forEach((t) => t.stop());
+      screenStreamRef.current = null;
+    }
+    setState((s) => ({ ...s, screenStream: null, isScreenSharing: false }));
+  }, []);
+
   const startScreenShare = useCallback(async (): Promise<MediaStream | null> => {
     try {
       const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
@@ -176,15 +184,7 @@ export function useMedia() {
     } catch {
       return null;
     }
-  }, []);
-
-  const stopScreenShare = useCallback(() => {
-    if (screenStreamRef.current) {
-      screenStreamRef.current.getTracks().forEach((t) => t.stop());
-      screenStreamRef.current = null;
-    }
-    setState((s) => ({ ...s, screenStream: null, isScreenSharing: false }));
-  }, []);
+  }, [stopScreenShare]);
 
   return {
     state,

@@ -1,15 +1,24 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { Video, Copy, Check, Clock, ShieldAlert, Info, Crown, MicOff, UserX, AlertTriangle, Link2, Share2 } from 'lucide-react';
-import { useRoom } from '@/context/RoomContext';
+import {
+  Video, Copy, Check, Clock, ShieldAlert, Info, Crown,
+  AlertTriangle, Link2, LayoutGrid, Maximize2, HelpCircle
+} from 'lucide-react';
+import { useRoom } from '@/hooks/useRoom';
 import { useMedia } from '@/hooks/useMedia';
 import { useWebRTC } from '@/hooks/useWebRTC';
+import { useRecorder } from '@/hooks/useRecorder';
 import { VideoTile } from '@/components/VideoTile';
 import { ControlDock } from '@/components/ControlDock';
 import { ChatDrawer } from '@/components/ChatDrawer';
 import { ParticipantsDrawer } from '@/components/ParticipantsDrawer';
 import { Whiteboard } from '@/components/Whiteboard';
+import { NetworkStatsHUD } from '@/components/NetworkStatsHUD';
+import { InviteModal } from '@/components/InviteModal';
+import { KeyboardShortcutsModal } from '@/components/KeyboardShortcutsModal';
+import { SettingsModal } from '@/components/SettingsModal';
+import { FloatingReactionsOverlay } from '@/components/FloatingReactions';
 import { cn } from '@/lib/utils';
-import type { PresenceState } from '@/lib/types';
+import type { PresenceState, ReactionEvent, VideoFilter } from '@/lib/types';
 
 type Toast = {
   id: string;
@@ -34,11 +43,24 @@ export function MeetingRoom({ roomCode, displayName, roomDbId, isCreator, onLeav
     isHost,
     userId,
     channel,
+    isHandRaised,
+    toggleHandRaise,
+    sendReaction,
+    onReaction,
     muteAllParticipants,
     endMeetingForAll,
     registerAdminHandlers,
   } = useRoom();
-  const { state, initPreview, toggleMic, toggleCam, startScreenShare, stopScreenShare, stopPreview } = useMedia();
+
+  const {
+    state,
+    initPreview,
+    toggleMic,
+    toggleCam,
+    startScreenShare,
+    stopScreenShare,
+    stopPreview,
+  } = useMedia();
 
   const { remoteStreams } = useWebRTC({
     channel,
@@ -49,16 +71,24 @@ export function MeetingRoom({ roomCode, displayName, roomDbId, isCreator, onLeav
     participants,
   });
 
+  const { isRecording, formattedDuration, startRecording, stopRecording } = useRecorder();
+
   const [chatOpen, setChatOpen] = useState(false);
   const [participantsOpen, setParticipantsOpen] = useState(false);
   const [whiteboardOpen, setWhiteboardOpen] = useState(false);
+  const [inviteModalOpen, setInviteModalOpen] = useState(false);
+  const [shortcutsModalOpen, setShortcutsModalOpen] = useState(false);
+  const [settingsModalOpen, setSettingsModalOpen] = useState(false);
+  const [videoFilter, setVideoFilter] = useState<VideoFilter>('none');
+  const [layoutMode, setLayoutMode] = useState<'auto' | 'grid' | 'spotlight'>('auto');
+
   const [unreadCount, setUnreadCount] = useState(0);
   const [pinnedId, setPinnedId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const [copiedLink, setCopiedLink] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [roomReady, setRoomReady] = useState(false);
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const [floatingReactions, setFloatingReactions] = useState<ReactionEvent[]>([]);
   const [terminationModal, setTerminationModal] = useState<{ title: string; desc: string } | null>(null);
 
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -89,6 +119,17 @@ export function MeetingRoom({ roomCode, displayName, roomDbId, isCreator, onLeav
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomDbId]);
+
+  // Subscribe to reaction events
+  useEffect(() => {
+    const unbind = onReaction((reaction) => {
+      setFloatingReactions((prev) => [...prev, reaction]);
+      setTimeout(() => {
+        setFloatingReactions((prev) => prev.filter((r) => r.id !== reaction.id));
+      }, 3000);
+    });
+    return unbind;
+  }, [onReaction]);
 
   // Register remote admin command handlers
   useEffect(() => {
@@ -179,6 +220,52 @@ export function MeetingRoom({ roomCode, displayName, roomDbId, isCreator, onLeav
     return () => cancelAnimationFrame(rafRef.current);
   }, [state.localStream, state.micOn, userId, speakingId]);
 
+  // Global Keyboard Shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore when typing in inputs
+      if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) return;
+
+      if (e.key === 'm' || e.key === 'M') {
+        e.preventDefault();
+        toggleMic();
+        addToast(!state.micOn ? 'Microphone Unmuted' : 'Microphone Muted', 'info');
+      } else if (e.key === 'v' || e.key === 'V') {
+        e.preventDefault();
+        toggleCam();
+        addToast(!state.camOn ? 'Camera Turned On' : 'Camera Turned Off', 'info');
+      } else if (e.key === 'h' || e.key === 'H') {
+        e.preventDefault();
+        toggleHandRaise();
+        addToast(!isHandRaised ? 'Hand Raised ✋' : 'Hand Lowered', 'info');
+      } else if (e.key === 'c' || e.key === 'C') {
+        e.preventDefault();
+        setChatOpen((v) => !v);
+        setParticipantsOpen(false);
+      } else if (e.key === 'p' || e.key === 'P') {
+        e.preventDefault();
+        setParticipantsOpen((v) => !v);
+        setChatOpen(false);
+      } else if (e.key === 'w' || e.key === 'W') {
+        e.preventDefault();
+        setWhiteboardOpen((v) => !v);
+      } else if (e.key === '?') {
+        e.preventDefault();
+        setShortcutsModalOpen((v) => !v);
+      } else if (e.key === 'Escape') {
+        setChatOpen(false);
+        setParticipantsOpen(false);
+        setWhiteboardOpen(false);
+        setInviteModalOpen(false);
+        setShortcutsModalOpen(false);
+        setSettingsModalOpen(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [state.micOn, state.camOn, isHandRaised, toggleMic, toggleCam, toggleHandRaise, addToast]);
+
   const handleToggleScreen = useCallback(async () => {
     if (state.isScreenSharing) {
       stopScreenShare();
@@ -187,6 +274,25 @@ export function MeetingRoom({ roomCode, displayName, roomDbId, isCreator, onLeav
     }
   }, [state.isScreenSharing, startScreenShare, stopScreenShare]);
 
+  const handleToggleRecording = useCallback(() => {
+    if (isRecording) {
+      stopRecording();
+      addToast('Meeting recording saved and downloaded! 🎬', 'success');
+    } else {
+      const activeStream = state.isScreenSharing && state.screenStream
+        ? state.screenStream
+        : state.localStream;
+      if (!activeStream) {
+        addToast('No media stream available to record.', 'warning');
+        return;
+      }
+      const started = startRecording(activeStream);
+      if (started) {
+        addToast('Recording meeting session started (1080p WebM)...', 'info');
+      }
+    }
+  }, [isRecording, state.isScreenSharing, state.screenStream, state.localStream, startRecording, stopRecording, addToast]);
+
   const handleMuteAll = useCallback(() => {
     muteAllParticipants();
     if (state.micOn) toggleMic();
@@ -194,24 +300,17 @@ export function MeetingRoom({ roomCode, displayName, roomDbId, isCreator, onLeav
   }, [muteAllParticipants, state.micOn, toggleMic, addToast]);
 
   const handleLeave = useCallback(() => {
+    if (isRecording) stopRecording();
     stopPreview();
     leaveRoom();
     onLeave();
-  }, [stopPreview, leaveRoom, onLeave]);
+  }, [isRecording, stopRecording, stopPreview, leaveRoom, onLeave]);
 
   const copyCode = () => {
     navigator.clipboard.writeText(roomCode);
     setCopied(true);
     addToast(`Room code ${roomCode} copied!`, 'info');
     setTimeout(() => setCopied(false), 2000);
-  };
-
-  const copyInviteLink = () => {
-    const inviteUrl = `${window.location.origin}${window.location.pathname}?room=${encodeURIComponent(roomCode)}`;
-    navigator.clipboard.writeText(inviteUrl);
-    setCopiedLink(true);
-    addToast('Meeting invite link copied to clipboard! 🔗', 'success');
-    setTimeout(() => setCopiedLink(false), 2500);
   };
 
   const formatElapsed = (s: number) => {
@@ -228,6 +327,7 @@ export function MeetingRoom({ roomCode, displayName, roomDbId, isCreator, onLeav
     isMicOn: state.micOn,
     isCamOn: state.camOn,
     isScreenSharing: state.isScreenSharing,
+    isHandRaised,
     avatarColor: '',
     joinedAt: Date.now(),
   };
@@ -237,7 +337,9 @@ export function MeetingRoom({ roomCode, displayName, roomDbId, isCreator, onLeav
   // Determine screen sharer
   const sharer = participants.find((p) => p.isScreenSharing);
   const isLocalSharing = state.isScreenSharing;
-  const effectivePinned = pinnedId ?? (sharer ? sharer.id : null) ?? (isLocalSharing ? userId : null);
+  const effectivePinned = layoutMode === 'grid'
+    ? null
+    : (pinnedId ?? (sharer ? sharer.id : null) ?? (isLocalSharing ? userId : null));
 
   // Layout: pinned/sharer spotlight vs grid
   const spotlightParticipant = effectivePinned
@@ -257,23 +359,23 @@ export function MeetingRoom({ roomCode, displayName, roomDbId, isCreator, onLeav
 
   // Dynamic grid responsive columns and rows
   const gridCount = gridParticipants.length;
-  const gridLayout = 
-    gridCount <= 1 
-      ? 'grid-cols-1 grid-rows-1' 
-      : gridCount === 2 
-        ? 'grid-cols-1 sm:grid-cols-2 grid-rows-2 sm:grid-rows-1' 
-        : gridCount <= 4 
-          ? 'grid-cols-2 grid-rows-2' 
+  const gridLayout =
+    gridCount <= 1
+      ? 'grid-cols-1 grid-rows-1'
+      : gridCount === 2
+        ? 'grid-cols-1 sm:grid-cols-2 grid-rows-2 sm:grid-rows-1'
+        : gridCount <= 4
+          ? 'grid-cols-2 grid-rows-2'
           : 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 auto-rows-fr';
 
   if (!roomReady) {
     return (
       <div className="min-h-screen bg-[#09090b] flex items-center justify-center p-4">
         <div className="text-center">
-          <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br from-emerald-400 to-cyan-500 flex items-center justify-center mx-auto mb-4 animate-pulse shadow-lg shadow-emerald-500/20">
-            <Video className="w-7 h-7 sm:w-8 sm:h-8 text-white" />
+          <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-3xl bg-gradient-to-br from-emerald-400 to-cyan-500 flex items-center justify-center mx-auto mb-4 animate-pulse shadow-lg shadow-emerald-500/20">
+            <Video className="w-7 h-7 sm:w-8 sm:h-8 text-black" />
           </div>
-          <p className="text-white/50 text-sm">Connecting to room…</p>
+          <p className="text-white/50 text-sm font-medium">Connecting to encrypted room…</p>
         </div>
       </div>
     );
@@ -281,13 +383,16 @@ export function MeetingRoom({ roomCode, displayName, roomDbId, isCreator, onLeav
 
   return (
     <div className="h-screen w-screen bg-[#09090b] overflow-hidden flex flex-col relative">
+      {/* Live Floating Reactions Overlay */}
+      <FloatingReactionsOverlay reactions={floatingReactions} />
+
       {/* Toast Notification Container */}
       <div className="fixed top-14 left-1/2 -translate-x-1/2 z-50 flex flex-col gap-2 pointer-events-none w-full max-w-sm px-4">
         {toasts.map((t) => (
           <div
             key={t.id}
             className={cn(
-              "px-3.5 py-2.5 rounded-xl border backdrop-blur-xl shadow-2xl text-xs font-medium flex items-center gap-2.5 pointer-events-auto transition-all animate-in fade-in slide-in-from-top-2 duration-200",
+              "px-3.5 py-2.5 rounded-2xl border backdrop-blur-2xl shadow-2xl text-xs font-semibold flex items-center gap-2.5 pointer-events-auto transition-all animate-in fade-in slide-in-from-top-2 duration-200",
               t.type === 'warning' && "bg-amber-500/15 border-amber-500/30 text-amber-300",
               t.type === 'danger' && "bg-red-500/15 border-red-500/30 text-red-300",
               t.type === 'success' && "bg-emerald-500/15 border-emerald-500/30 text-emerald-300",
@@ -303,35 +408,49 @@ export function MeetingRoom({ roomCode, displayName, roomDbId, isCreator, onLeav
         ))}
       </div>
 
-      {/* Top bar */}
-      <div className="flex items-center justify-between px-3 sm:px-4 py-2 sm:py-2.5 bg-[#121215]/80 backdrop-blur-xl border-b border-white/[0.06] z-30 shrink-0">
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-emerald-400 to-cyan-500 flex items-center justify-center shadow-md shrink-0">
-            <Video className="w-4 h-4 text-white" />
+      {/* Top Header Bar */}
+      <header className="flex items-center justify-between px-3 sm:px-5 py-2.5 bg-[#121215]/85 backdrop-blur-2xl border-b border-white/[0.08] z-30 shrink-0">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-400 to-cyan-500 flex items-center justify-center shadow-md shadow-emerald-500/20 shrink-0">
+            <Video className="w-4.5 h-4.5 text-black font-bold" />
           </div>
-          <span className="font-bold text-white text-sm hidden xs:inline sm:inline">PulseMeet</span>
+          <div className="flex items-center gap-2">
+            <span className="font-bold text-white text-sm font-display hidden xs:inline sm:inline">PulseMeet</span>
+            <span className="hidden md:inline px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-bold uppercase">
+              Live Room
+            </span>
+          </div>
         </div>
 
         <div className="flex items-center gap-1.5 sm:gap-2.5">
-          <div className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-[#18181b] border border-white/[0.06]">
+          {/* Duration Timer */}
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#18181b] border border-white/[0.06]">
             <Clock className="w-3.5 h-3.5 text-white/40" />
-            <span className="text-xs sm:text-sm text-white/70 font-mono tabular-nums">{formatElapsed(elapsed)}</span>
+            <span className="text-xs sm:text-sm text-white/80 font-mono tabular-nums">{formatElapsed(elapsed)}</span>
           </div>
 
-          {/* Share Link Button */}
+          {/* Network Health Diagnostics HUD */}
+          <NetworkStatsHUD />
+
+          {/* Layout Mode Switcher */}
           <button
-            onClick={copyInviteLink}
-            className={cn(
-              "flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all shadow-sm",
-              copiedLink
-                ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-300"
-                : "bg-emerald-500/10 border-emerald-500/25 text-emerald-400 hover:bg-emerald-500/20"
-            )}
-            title="Copy shareable meeting invite link"
+            onClick={() => setLayoutMode((prev) => (prev === 'grid' ? 'spotlight' : 'grid'))}
+            className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-[#18181b] border border-white/[0.06] hover:border-white/10 text-white/70 hover:text-white text-xs transition-colors"
+            title="Toggle Grid / Spotlight View"
           >
-            {copiedLink ? <Check className="w-3.5 h-3.5" /> : <Link2 className="w-3.5 h-3.5" />}
-            <span className="hidden sm:inline">{copiedLink ? 'Link Copied!' : 'Share Link'}</span>
-            <span className="sm:hidden">{copiedLink ? 'Copied' : 'Share'}</span>
+            {layoutMode === 'grid' ? <Maximize2 className="w-3.5 h-3.5" /> : <LayoutGrid className="w-3.5 h-3.5" />}
+            <span className="capitalize">{layoutMode === 'grid' ? 'Spotlight' : 'Grid'}</span>
+          </button>
+
+          {/* Share & QR Invite Modal Button */}
+          <button
+            onClick={() => setInviteModalOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-emerald-500/25 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 text-xs font-bold transition-all shadow-sm"
+            title="Open invite modal & QR code"
+          >
+            <Link2 className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Invite / QR</span>
+            <span className="sm:hidden">Invite</span>
           </button>
 
           {/* Room Code */}
@@ -340,18 +459,27 @@ export function MeetingRoom({ roomCode, displayName, roomDbId, isCreator, onLeav
             className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-[#18181b] border border-white/[0.06] hover:border-white/10 text-white/70 hover:text-white transition-colors"
             title="Copy room code"
           >
-            <span className="font-mono text-xs sm:text-sm text-white/80">{roomCode}</span>
+            <span className="font-mono text-xs sm:text-sm text-white/90 font-medium">{roomCode}</span>
             {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-white/40" />}
           </button>
+
+          {/* Shortcuts Help Button */}
+          <button
+            onClick={() => setShortcutsModalOpen(true)}
+            className="p-2 rounded-xl bg-[#18181b] border border-white/[0.06] hover:border-white/10 text-white/50 hover:text-white transition-colors"
+            title="Keyboard shortcuts (?)"
+          >
+            <HelpCircle className="w-4 h-4" />
+          </button>
         </div>
-      </div>
+      </header>
 
       {/* Main video area */}
-      <div className="flex-1 flex overflow-hidden relative">
+      <main className="flex-1 flex overflow-hidden relative" role="main">
         <div className="flex-1 p-2 sm:p-3 pb-20 sm:pb-24 overflow-hidden">
           {spotlightParticipant ? (
             <div className="h-full flex flex-col gap-2">
-              {/* Spotlight tile */}
+              {/* Spotlight main tile */}
               <div className="flex-1 min-h-0">
                 <VideoTile
                   participant={spotlightParticipant}
@@ -359,10 +487,11 @@ export function MeetingRoom({ roomCode, displayName, roomDbId, isCreator, onLeav
                   isLocal={spotlightParticipant.id === userId}
                   isSpeaking={speakingId === spotlightParticipant.id}
                   isPinned={pinnedId === spotlightParticipant.id}
+                  filter={spotlightParticipant.id === userId ? videoFilter : 'none'}
                   onPin={() => setPinnedId((prev) => (prev === spotlightParticipant.id ? null : spotlightParticipant.id))}
                 />
               </div>
-              {/* Carousel of others */}
+              {/* Thumbnail carousel of others */}
               {gridParticipants.length > 0 && (
                 <div className="h-24 sm:h-28 flex gap-2 overflow-x-auto pb-1">
                   {gridParticipants.map((p) => (
@@ -373,6 +502,7 @@ export function MeetingRoom({ roomCode, displayName, roomDbId, isCreator, onLeav
                         isLocal={p.id === userId}
                         isSpeaking={speakingId === p.id}
                         isPinned={false}
+                        filter={p.id === userId ? videoFilter : 'none'}
                         onPin={() => setPinnedId(p.id)}
                       />
                     </div>
@@ -381,7 +511,7 @@ export function MeetingRoom({ roomCode, displayName, roomDbId, isCreator, onLeav
               )}
             </div>
           ) : (
-            <div className={cn('h-full grid gap-1.5 sm:gap-2', gridLayout)}>
+            <div className={cn('h-full grid gap-2', gridLayout)}>
               {allParticipants.map((p) => (
                 <div key={p.id} className="w-full h-full min-h-0">
                   <VideoTile
@@ -390,6 +520,7 @@ export function MeetingRoom({ roomCode, displayName, roomDbId, isCreator, onLeav
                     isLocal={p.id === userId}
                     isSpeaking={speakingId === p.id}
                     isPinned={false}
+                    filter={p.id === userId ? videoFilter : 'none'}
                     onPin={() => setPinnedId(p.id)}
                   />
                 </div>
@@ -411,22 +542,29 @@ export function MeetingRoom({ roomCode, displayName, roomDbId, isCreator, onLeav
             )}
           </div>
         )}
-      </div>
+      </main>
 
       {/* Control Dock */}
       <ControlDock
         micOn={state.micOn}
         camOn={state.camOn}
         isScreenSharing={state.isScreenSharing}
+        isHandRaised={isHandRaised}
+        isRecording={isRecording}
+        recordingDuration={formattedDuration}
         onToggleMic={toggleMic}
         onToggleCam={toggleCam}
         onToggleScreen={handleToggleScreen}
+        onToggleHandRaise={toggleHandRaise}
+        onToggleRecording={handleToggleRecording}
+        onOpenSettings={() => setSettingsModalOpen(true)}
         onToggleWhiteboard={() => setWhiteboardOpen((v) => !v)}
         whiteboardActive={whiteboardOpen}
         onToggleChat={() => { setChatOpen((v) => !v); setParticipantsOpen(false); }}
         unreadCount={chatOpen ? 0 : unreadCount}
         onToggleParticipants={() => { setParticipantsOpen((v) => !v); setChatOpen(false); }}
         participantCount={participants.length}
+        onSendReaction={sendReaction}
         onLeave={handleLeave}
         isHost={isHost}
         onEndMeetingForAll={endMeetingForAll}
@@ -435,15 +573,35 @@ export function MeetingRoom({ roomCode, displayName, roomDbId, isCreator, onLeav
       {/* Whiteboard overlay */}
       {whiteboardOpen && <Whiteboard onClose={() => setWhiteboardOpen(false)} />}
 
+      {/* Invite Modal with QR Code */}
+      {inviteModalOpen && (
+        <InviteModal roomCode={roomCode} onClose={() => setInviteModalOpen(false)} />
+      )}
+
+      {/* Keyboard Shortcuts Modal */}
+      {shortcutsModalOpen && (
+        <KeyboardShortcutsModal onClose={() => setShortcutsModalOpen(false)} />
+      )}
+
+      {/* Settings & Video Filters Modal */}
+      {settingsModalOpen && (
+        <SettingsModal
+          onClose={() => setSettingsModalOpen(false)}
+          currentFilter={videoFilter}
+          onFilterChange={setVideoFilter}
+          localStream={state.localStream}
+        />
+      )}
+
       {/* Termination Modal (Kicked / Meeting Ended) */}
       {terminationModal && (
         <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-[#121215] border border-white/[0.1] rounded-2xl p-6 max-w-sm w-full shadow-2xl text-center space-y-4 animate-in fade-in zoom-in-95 duration-150">
+          <div className="bg-[#121215] border border-white/[0.1] rounded-3xl p-6 max-w-sm w-full shadow-2xl text-center space-y-4 animate-in fade-in zoom-in-95 duration-150">
             <div className="w-12 h-12 rounded-2xl bg-red-500/15 text-red-400 flex items-center justify-center mx-auto shadow-lg shadow-red-500/10">
               <ShieldAlert className="w-6 h-6" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-white">{terminationModal.title}</h3>
+              <h3 className="text-base font-bold text-white font-display">{terminationModal.title}</h3>
               <p className="text-xs text-white/50 mt-1">{terminationModal.desc}</p>
             </div>
             <button
@@ -451,7 +609,7 @@ export function MeetingRoom({ roomCode, displayName, roomDbId, isCreator, onLeav
                 setTerminationModal(null);
                 onLeave();
               }}
-              className="w-full py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black text-sm font-semibold transition-colors"
+              className="w-full py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-bold transition-colors shadow-lg shadow-emerald-500/20"
             >
               Return to Lobby
             </button>

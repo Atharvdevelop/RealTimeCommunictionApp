@@ -7,6 +7,7 @@ export type Participant = {
   isScreenSharing: boolean;
   isSpeaking: boolean;
   isPinned: boolean;
+  isHandRaised?: boolean;
   avatarColor: string;
   joinedAt: number;
 };
@@ -47,6 +48,7 @@ export type PresenceState = {
   isMicOn: boolean;
   isCamOn: boolean;
   isScreenSharing: boolean;
+  isHandRaised?: boolean;
   avatarColor: string;
   joinedAt: number;
 };
@@ -59,3 +61,24 @@ export type SharedFile = {
   senderName: string;
   createdAt: number;
 };
+
+export type ReactionEvent = {
+  id: string;
+  emoji: string;
+  senderName: string;
+  senderId: string;
+  timestamp: number;
+  xOffset: number;
+};
+
+export type VideoFilter = 'none' | 'blur' | 'grayscale' | 'warm' | 'cool' | 'sepia';
+
+export type NetworkQuality = 'excellent' | 'good' | 'fair' | 'poor';
+
+export type NetworkStats = {
+  ping: number; // in ms
+  packetLoss: number; // in %
+  fps: number;
+  quality: NetworkQuality;
+};
+

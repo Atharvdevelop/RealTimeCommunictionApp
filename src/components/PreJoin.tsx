@@ -84,28 +84,28 @@ export function PreJoin({ roomCode, displayName, onJoin, onCancel }: Props) {
     }
     setJoining(true);
     localStorage.setItem('pm_user_name', trimmedName);
-    const { data } = await supabase.from('rooms').select('id').eq('code', roomCode).maybeSingle();
+    await supabase.from('rooms').select('id').eq('code', roomCode).maybeSingle();
     setJoining(false);
     onJoin(trimmedName);
   };
 
   return (
-    <div className="min-h-screen bg-[#09090b] text-white flex items-center justify-center p-3 sm:p-4">
+    <main className="min-h-screen bg-[#09090b] text-white flex items-center justify-center p-3 sm:p-4 relative">
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-1/3 left-1/3 w-96 h-96 bg-emerald-500/10 rounded-full blur-[120px]" />
       </div>
 
-      <div className="relative w-full max-w-md sm:max-w-lg">
+      <div className="relative w-full max-w-md sm:max-w-lg z-10">
         <div className="text-center mb-3 sm:mb-6">
-          <h1 className="text-xl sm:text-2xl font-bold mb-1">Ready to join?</h1>
+          <h1 className="text-xl sm:text-2xl font-bold font-display mb-1">Ready to join?</h1>
           <p className="text-white/40 text-xs sm:text-sm">
-            Room Code: <span className="font-mono text-emerald-400 font-medium">{roomCode}</span>
+            Room Code: <span className="font-mono text-emerald-400 font-semibold">{roomCode}</span>
           </p>
         </div>
 
-        <div className="rounded-2xl bg-[#121215]/80 backdrop-blur-xl border border-white/[0.08] p-4 sm:p-6 shadow-2xl space-y-3 sm:space-y-4">
+        <div className="rounded-3xl bg-[#121215]/85 backdrop-blur-xl border border-white/[0.1] p-4 sm:p-6 shadow-2xl space-y-3 sm:space-y-4">
           {/* Preview */}
-          <div className="relative aspect-video rounded-xl overflow-hidden bg-[#18181b]">
+          <div className="relative aspect-video rounded-2xl overflow-hidden bg-[#18181b] border border-white/[0.08]">
             {state.localStream && state.camOn ? (
               <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover -scale-x-100" />
             ) : (
@@ -123,7 +123,7 @@ export function PreJoin({ roomCode, displayName, onJoin, onCancel }: Props) {
               </div>
             )}
             {state.micOn && audioLevel > 0.05 && (
-              <div className="absolute bottom-3 right-3 flex items-end gap-0.5 h-5">
+              <div className="absolute bottom-3 right-3 flex items-end gap-0.5 h-5 bg-black/50 backdrop-blur-sm p-1 rounded-lg">
                 {[0, 1, 2, 3].map((i) => (
                   <div
                     key={i}
@@ -246,14 +246,14 @@ export function PreJoin({ roomCode, displayName, onJoin, onCancel }: Props) {
             <button
               onClick={handleJoin}
               disabled={joining || !!state.error}
-              className="flex-1 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black text-sm font-semibold transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 disabled:opacity-50"
+              className="flex-1 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black text-sm font-bold transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 disabled:opacity-50"
             >
               {joining ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
-              {joining ? 'Joining…' : 'Join Now'}
+              {joining ? 'Joining…' : 'Join Meeting'}
             </button>
           </div>
         </div>
       </div>
-    </div>
+    </main>
   );
 }

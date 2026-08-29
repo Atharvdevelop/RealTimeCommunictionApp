@@ -16,6 +16,16 @@ const RTC_CONFIG: RTCConfiguration = {
   iceCandidatePoolSize: 10,
 };
 
+type SignalPayload = {
+  from: string;
+  to: string;
+  signal: {
+    type: 'offer' | 'answer' | 'candidate';
+    sdp?: RTCSessionDescriptionInit;
+    candidate?: RTCIceCandidateInit;
+  };
+};
+
 type UseWebRTCProps = {
   channel: RealtimeChannel | null;
   localStream: MediaStream | null;
@@ -146,13 +156,14 @@ export function useWebRTC({
   useEffect(() => {
     if (!channel) return;
 
-    const handleSignal = async ({ payload }: { payload: any }) => {
-      if (!payload || payload.to !== userId) return;
-      const { from: peerId, signal } = payload;
+    const handleSignal = async ({ payload }: { payload: unknown }) => {
+      const p = payload as SignalPayload;
+      if (!p || p.to !== userId) return;
+      const { from: peerId, signal } = p;
       if (!peerId || !signal) return;
 
       try {
-        if (signal.type === 'offer') {
+        if (signal.type === 'offer' && signal.sdp) {
           let pc = peersRef.current.get(peerId);
           if (!pc || pc.signalingState !== 'stable') {
             pc = createPeerConnection(peerId);
@@ -186,7 +197,7 @@ export function useWebRTC({
               },
             },
           });
-        } else if (signal.type === 'answer') {
+        } else if (signal.type === 'answer' && signal.sdp) {
           const pc = peersRef.current.get(peerId);
           if (pc && pc.signalingState === 'have-local-offer') {
             await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
@@ -281,10 +292,12 @@ export function useWebRTC({
 
   // Cleanup on unmount
   useEffect(() => {
+    const peers = peersRef.current;
+    const pendingCandidates = pendingCandidatesRef.current;
     return () => {
-      peersRef.current.forEach((pc) => pc.close());
-      peersRef.current.clear();
-      pendingCandidatesRef.current.clear();
+      peers.forEach((pc) => pc.close());
+      peers.clear();
+      pendingCandidates.clear();
     };
   }, []);
 

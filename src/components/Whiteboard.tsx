@@ -3,7 +3,7 @@ import {
   X, Pen, Eraser, Square, Circle, ArrowRight, Type, Trash2,
   Undo2, Redo2, Download, MousePointer2,
 } from 'lucide-react';
-import { useRoom } from '@/context/RoomContext';
+import { useRoom } from '@/hooks/useRoom';
 import type { WhiteboardStroke, WhiteboardTool, RemoteCursor } from '@/lib/types';
 import { cn } from '@/lib/utils';
 

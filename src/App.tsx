@@ -3,6 +3,7 @@ import { RoomProvider } from '@/context/RoomContext';
 import { Lobby } from '@/components/Lobby';
 import { PreJoin } from '@/components/PreJoin';
 import { MeetingRoom } from '@/components/MeetingRoom';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { supabase } from '@/lib/supabase';
 
 type AppState = 'lobby' | 'prejoin' | 'meeting';
@@ -105,8 +106,12 @@ function AppInner() {
 
 export default function App() {
   return (
-    <RoomProvider>
-      <AppInner />
-    </RoomProvider>
+    <ErrorBoundary>
+      <RoomProvider>
+        <AppInner />
+      </RoomProvider>
+    </ErrorBoundary>
   );
 }
+
+

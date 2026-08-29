@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { X, Send, Smile, Paperclip, Download, FileText, Image as ImageIcon, File } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { useRoom } from '@/context/RoomContext';
+import { useRoom } from '@/hooks/useRoom';
 import type { Message } from '@/lib/supabase';
 import { formatTime, cn, generateId } from '@/lib/utils';
 
@@ -142,7 +142,7 @@ export function ChatDrawer({ onClose, onRead }: Props) {
       event: 'file',
       payload: sharedFile,
     });
-  }, [roomDbId, userId, userName]);
+  }, [roomDbId, userName]);
 
   const onDrop = (e: React.DragEvent) => {
     e.preventDefault();
@@ -167,11 +167,11 @@ export function ChatDrawer({ onClose, onRead }: Props) {
   };
 
   return (
-    <div className="flex flex-col h-full bg-[#121215]/90 backdrop-blur-xl border-l border-white/[0.08]">
+    <aside className="flex flex-col h-full bg-[#121215]/95 backdrop-blur-xl border-l border-white/[0.08]" role="region" aria-label="Meeting Chat">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.06]">
-        <h3 className="font-semibold text-white text-sm">Chat & Files</h3>
-        <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/5 text-white/50 hover:text-white transition-colors">
+        <h3 className="font-semibold text-white text-sm font-display">In-Meeting Chat & Files</h3>
+        <button onClick={onClose} aria-label="Close Chat" className="p-1.5 rounded-lg hover:bg-white/5 text-white/50 hover:text-white transition-colors">
           <X className="w-4 h-4" />
         </button>
       </div>
@@ -179,8 +179,8 @@ export function ChatDrawer({ onClose, onRead }: Props) {
       {/* Messages */}
       <div ref={listRef} className="flex-1 overflow-y-auto px-3 py-3 space-y-2 scroll-smooth">
         {messages.length === 0 && sharedFiles.length === 0 && (
-          <div className="text-center text-white/30 text-sm py-8">
-            No messages yet. Start the conversation!
+          <div className="text-center text-white/30 text-xs py-8">
+            No messages yet. Send a message or drop files!
           </div>
         )}
         {messages.map((msg) => {
@@ -192,10 +192,10 @@ export function ChatDrawer({ onClose, onRead }: Props) {
               )}
               <div
                 className={cn(
-                  'max-w-[85%] rounded-xl px-3 py-2 text-sm',
+                  'max-w-[85%] rounded-2xl px-3.5 py-2 text-xs sm:text-sm',
                   isLocal
-                    ? 'bg-emerald-500/20 text-white rounded-br-sm'
-                    : 'bg-[#18181b] text-white/90 rounded-bl-sm'
+                    ? 'bg-emerald-500/20 text-white rounded-br-sm border border-emerald-500/30'
+                    : 'bg-[#18181b] text-white/90 rounded-bl-sm border border-white/[0.06]'
                 )}
               >
                 {msg.content}
@@ -210,20 +210,21 @@ export function ChatDrawer({ onClose, onRead }: Props) {
           <div className="pt-2 space-y-2">
             <p className="text-xs text-white/30 font-medium px-1">Shared Files</p>
             {sharedFiles.map((file) => (
-              <div key={file.id} className="flex items-center gap-3 rounded-xl bg-[#18181b] border border-white/[0.06] p-2.5">
-                <div className="w-9 h-9 rounded-lg bg-cyan-500/15 text-cyan-400 flex items-center justify-center shrink-0">
+              <div key={file.id} className="flex items-center gap-3 rounded-2xl bg-[#18181b] border border-white/[0.06] p-2.5">
+                <div className="w-9 h-9 rounded-xl bg-cyan-500/15 text-cyan-400 flex items-center justify-center shrink-0">
                   {fileIcon(file.type)}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm text-white truncate">{file.name}</p>
-                  <p className="text-xs text-white/30">
+                  <p className="text-xs sm:text-sm text-white truncate font-medium">{file.name}</p>
+                  <p className="text-[11px] text-white/30">
                     {file.senderName} · {(file.size / 1024).toFixed(0)} KB
                   </p>
                 </div>
                 <a
                   href={file.url}
                   download={file.name}
-                  className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-white/60 hover:text-white transition-colors shrink-0"
+                  className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-white/60 hover:text-white transition-colors shrink-0"
+                  title="Download File"
                 >
                   <Download className="w-4 h-4" />
                 </a>
@@ -235,7 +236,7 @@ export function ChatDrawer({ onClose, onRead }: Props) {
         {uploadProgress !== null && (
           <div className="rounded-xl bg-[#18181b] border border-white/[0.06] p-3">
             <div className="flex items-center justify-between text-xs text-white/50 mb-1.5">
-              <span>Uploading…</span>
+              <span>Uploading file…</span>
               <span>{uploadProgress}%</span>
             </div>
             <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
@@ -264,7 +265,7 @@ export function ChatDrawer({ onClose, onRead }: Props) {
       {dragOver && (
         <div
           onDragLeave={() => setDragOver(false)}
-          className="absolute inset-0 m-3 rounded-xl border-2 border-dashed border-emerald-400/50 bg-emerald-500/5 flex items-center justify-center pointer-events-none z-10"
+          className="absolute inset-0 m-3 rounded-2xl border-2 border-dashed border-emerald-400/50 bg-emerald-500/5 flex items-center justify-center pointer-events-none z-10"
         >
           <p className="text-emerald-400 text-sm font-medium">Drop files to share</p>
         </div>
@@ -273,22 +274,23 @@ export function ChatDrawer({ onClose, onRead }: Props) {
       {/* Input */}
       <div className="p-3 border-t border-white/[0.06]" onDragOver={(e) => { e.preventDefault(); setDragOver(true); }} onDrop={onDrop}>
         {showEmojis && (
-          <div className="flex gap-1 flex-wrap mb-2 p-2 rounded-xl bg-[#18181b] border border-white/[0.06]">
+          <div className="flex gap-1 flex-wrap mb-2 p-2 rounded-2xl bg-[#18181b] border border-white/[0.06]">
             {EMOJIS.map((emoji) => (
               <button
                 key={emoji}
                 onClick={() => { setInput((prev) => prev + emoji); setShowEmojis(false); }}
-                className="text-xl hover:scale-110 transition-transform p-1"
+                className="text-xl hover:scale-125 transition-transform p-1 active:scale-95"
               >
                 {emoji}
               </button>
             ))}
           </div>
         )}
-        <div className="flex items-center gap-2 rounded-xl bg-[#18181b] border border-white/[0.08] px-3 py-2">
+        <div className="flex items-center gap-2 rounded-2xl bg-[#18181b] border border-white/[0.08] px-3 py-2">
           <button
             onClick={() => fileInputRef.current?.click()}
-            className="text-white/40 hover:text-white transition-colors shrink-0"
+            className="text-white/40 hover:text-white transition-colors shrink-0 p-1"
+            title="Attach file"
           >
             <Paperclip className="w-4.5 h-4.5" />
           </button>
@@ -304,23 +306,25 @@ export function ChatDrawer({ onClose, onRead }: Props) {
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
             placeholder="Type a message…"
-            className="flex-1 bg-transparent text-sm text-white placeholder-white/30 focus:outline-none"
+            className="flex-1 bg-transparent text-xs sm:text-sm text-white placeholder-white/30 focus:outline-none"
           />
           <button
             onClick={() => setShowEmojis((v) => !v)}
-            className={cn('transition-colors shrink-0', showEmojis ? 'text-emerald-400' : 'text-white/40 hover:text-white')}
+            className={cn('transition-colors shrink-0 p-1', showEmojis ? 'text-emerald-400' : 'text-white/40 hover:text-white')}
+            title="Pick emoji"
           >
             <Smile className="w-4.5 h-4.5" />
           </button>
           <button
             onClick={send}
             disabled={!input.trim()}
-            className="text-emerald-400 disabled:text-white/20 transition-colors shrink-0"
+            className="text-emerald-400 disabled:text-white/20 transition-colors shrink-0 p-1"
+            title="Send Message"
           >
             <Send className="w-4.5 h-4.5" />
           </button>
         </div>
       </div>
-    </div>
+    </aside>
   );
 }

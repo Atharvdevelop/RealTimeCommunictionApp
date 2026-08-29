@@ -1,54 +1,9 @@
 import { RealtimeChannel } from '@supabase/supabase-js';
-import { createContext, useCallback, useContext, useEffect, useRef, useState, ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, ReactNode } from 'react';
 import { supabase } from '@/lib/supabase';
-import type { PresenceState, RemoteCursor, WhiteboardStroke } from '@/lib/types';
+import type { PresenceState, RemoteCursor, WhiteboardStroke, ReactionEvent } from '@/lib/types';
 import { generateId, pickAvatarColor } from '@/lib/utils';
-
-type AdminEventHandlers = {
-  onMuted?: () => void;
-  onKicked?: (reason?: string) => void;
-  onMeetingEnded?: () => void;
-  onHostTransferred?: (isNewHost: boolean) => void;
-};
-
-type RoomContextValue = {
-  roomId: string | null;
-  roomCode: string | null;
-  roomDbId: string | null;
-  userId: string;
-  userName: string;
-  avatarColor: string;
-  channel: RealtimeChannel | null;
-  participants: PresenceState[];
-  remoteCursors: Record<string, RemoteCursor>;
-  isHost: boolean;
-  isLocked: boolean;
-  setUserName: (name: string) => void;
-  joinRoom: (roomCode: string, dbId: string, name: string, isCreator?: boolean) => void;
-  leaveRoom: () => void;
-  updatePresence: (patch: Partial<PresenceState>) => void;
-  broadcastCursor: (cursor: Omit<RemoteCursor, 'id' | 'name' | 'color'>) => void;
-  broadcastStroke: (stroke: WhiteboardStroke) => void;
-  clearWhiteboard: () => void;
-  onStroke: (cb: (stroke: WhiteboardStroke) => void) => () => void;
-  onClear: (cb: () => void) => () => void;
-  registerAdminHandlers: (handlers: AdminEventHandlers) => () => void;
-  // Host / Admin actions
-  muteParticipant: (targetId: string) => void;
-  muteAllParticipants: () => void;
-  kickParticipant: (targetId: string, name?: string) => void;
-  transferHost: (targetId: string) => void;
-  endMeetingForAll: () => void;
-  toggleLockMeeting: (locked?: boolean) => void;
-};
-
-const RoomContext = createContext<RoomContextValue | null>(null);
-
-export function useRoom() {
-  const ctx = useContext(RoomContext);
-  if (!ctx) throw new Error('useRoom must be used within RoomProvider');
-  return ctx;
-}
+import { RoomContext, AdminEventHandlers } from './RoomContextInstance';
 
 export function RoomProvider({ children }: { children: ReactNode }) {
   const [roomId, setRoomId] = useState<string | null>(null);
@@ -61,12 +16,14 @@ export function RoomProvider({ children }: { children: ReactNode }) {
   const [remoteCursors, setRemoteCursors] = useState<Record<string, RemoteCursor>>({});
   const [isHost, setIsHost] = useState(false);
   const [isLocked, setIsLocked] = useState(false);
+  const [isHandRaised, setIsHandRaised] = useState(false);
   const [channel, setChannel] = useState<RealtimeChannel | null>(null);
 
   const channelRef = useRef<RealtimeChannel | null>(null);
   const presenceRef = useRef<PresenceState | null>(null);
   const strokeCallbacks = useRef<Set<(s: WhiteboardStroke) => void>>(new Set());
   const clearCallbacks = useRef<Set<() => void>>(new Set());
+  const reactionCallbacks = useRef<Set<(r: ReactionEvent) => void>>(new Set());
   const adminHandlersRef = useRef<AdminEventHandlers>({});
   const userIdRef = useRef(userId);
   userIdRef.current = userId;
@@ -88,6 +45,14 @@ export function RoomProvider({ children }: { children: ReactNode }) {
     channelRef.current.track(presenceRef.current);
   }, []);
 
+  const toggleHandRaise = useCallback(() => {
+    setIsHandRaised((prev) => {
+      const next = !prev;
+      updatePresence({ isHandRaised: next });
+      return next;
+    });
+  }, [updatePresence]);
+
   const joinRoom = useCallback((code: string, dbId: string, name: string, isCreator: boolean = false) => {
     if (channelRef.current) return;
     setRoomId(dbId);
@@ -95,6 +60,7 @@ export function RoomProvider({ children }: { children: ReactNode }) {
     setRoomDbId(dbId);
     setUserNameState(name);
     setIsHost(isCreator);
+    setIsHandRaised(false);
 
     const presence: PresenceState = {
       id: userIdRef.current,
@@ -103,6 +69,7 @@ export function RoomProvider({ children }: { children: ReactNode }) {
       isMicOn: true,
       isCamOn: true,
       isScreenSharing: false,
+      isHandRaised: false,
       avatarColor,
       joinedAt: Date.now(),
     };
@@ -111,7 +78,7 @@ export function RoomProvider({ children }: { children: ReactNode }) {
     const ch = supabase.channel(`room:${dbId}`, {
       config: {
         presence: { key: userIdRef.current },
-        broadcast: { ack: false, self: false },
+        broadcast: { ack: false, self: true },
       },
     });
 
@@ -134,9 +101,7 @@ export function RoomProvider({ children }: { children: ReactNode }) {
       }
 
       // Determine single true host
-      // 1. Check if any participant is already marked isHost
       let hostParticipant = rawList.find((p) => p.isHost);
-      // 2. If no host exists (e.g. host disconnected or none set), earliest joiner becomes host
       if (!hostParticipant && rawList.length > 0) {
         hostParticipant = rawList[0];
       }
@@ -174,6 +139,12 @@ export function RoomProvider({ children }: { children: ReactNode }) {
       const cursor = payload.payload as RemoteCursor;
       if (cursor.id === userIdRef.current) return;
       setRemoteCursors((prev) => ({ ...prev, [cursor.id]: cursor }));
+    });
+
+    // Reaction broadcasts
+    ch.on('broadcast', { event: 'reaction' }, (payload: { payload: ReactionEvent }) => {
+      const reaction = payload.payload as ReactionEvent;
+      reactionCallbacks.current.forEach((cb) => cb(reaction));
     });
 
     // Admin commands handling
@@ -238,6 +209,7 @@ export function RoomProvider({ children }: { children: ReactNode }) {
     setRemoteCursors({});
     setIsHost(false);
     setIsLocked(false);
+    setIsHandRaised(false);
   }, []);
 
   const broadcastCursor = useCallback(
@@ -273,6 +245,30 @@ export function RoomProvider({ children }: { children: ReactNode }) {
     return () => { clearCallbacks.current.delete(cb); };
   }, []);
 
+  const sendReaction = useCallback((emoji: string) => {
+    if (!channelRef.current) return;
+    const reaction: ReactionEvent = {
+      id: generateId(),
+      emoji,
+      senderName: userName || 'Participant',
+      senderId: userIdRef.current,
+      timestamp: Date.now(),
+      xOffset: Math.floor(Math.random() * 60) - 30, // -30px to +30px jitter
+    };
+    channelRef.current.send({
+      type: 'broadcast',
+      event: 'reaction',
+      payload: reaction,
+    });
+    // Trigger locally as well
+    reactionCallbacks.current.forEach((cb) => cb(reaction));
+  }, [userName]);
+
+  const onReaction = useCallback((cb: (reaction: ReactionEvent) => void) => {
+    reactionCallbacks.current.add(cb);
+    return () => { reactionCallbacks.current.delete(cb); };
+  }, []);
+
   // Admin Host Operations
   const muteParticipant = useCallback((targetId: string) => {
     if (!channelRef.current) return;
@@ -292,12 +288,12 @@ export function RoomProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const kickParticipant = useCallback((targetId: string, name?: string) => {
+  const kickParticipant = useCallback((targetId: string, reason?: string) => {
     if (!channelRef.current) return;
     channelRef.current.send({
       type: 'broadcast',
       event: 'admin:kick-user',
-      payload: { targetId, reason: `Removed by host` },
+      payload: { targetId, reason: reason || 'Removed by host' },
     });
   }, []);
 
@@ -366,6 +362,10 @@ export function RoomProvider({ children }: { children: ReactNode }) {
         clearWhiteboard,
         onStroke,
         onClear,
+        sendReaction,
+        onReaction,
+        toggleHandRaise,
+        isHandRaised,
         registerAdminHandlers,
         isHost,
         isLocked,

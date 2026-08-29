@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import {
   X, Crown, Mic, MicOff, Video, VideoOff, MonitorUp,
-  UserX, Shield, Lock, Unlock, PhoneOff, MoreVertical, Link2, Check, Copy
+  UserX, Shield, Lock, Unlock, MoreVertical, Link2, Check, Hand
 } from 'lucide-react';
-import { useRoom } from '@/context/RoomContext';
+import { useRoom } from '@/hooks/useRoom';
 import { cn, initials } from '@/lib/utils';
 import type { PresenceState } from '@/lib/types';
 
@@ -13,7 +13,7 @@ type Props = {
   onEndMeetingForAll?: () => void;
 };
 
-export function ParticipantsDrawer({ onClose, onMuteAll, onEndMeetingForAll }: Props) {
+export function ParticipantsDrawer({ onClose, onMuteAll }: Props) {
   const {
     participants,
     userId,
@@ -35,6 +35,8 @@ export function ParticipantsDrawer({ onClose, onMuteAll, onEndMeetingForAll }: P
   const sorted = [...participants].sort((a, b) => {
     if (a.isHost && !b.isHost) return -1;
     if (!a.isHost && b.isHost) return 1;
+    if (a.isHandRaised && !b.isHandRaised) return -1;
+    if (!a.isHandRaised && b.isHandRaised) return 1;
     return a.joinedAt - b.joinedAt;
   });
 
@@ -73,20 +75,20 @@ export function ParticipantsDrawer({ onClose, onMuteAll, onEndMeetingForAll }: P
   };
 
   return (
-    <div className="flex flex-col h-full bg-[#121215]/95 backdrop-blur-xl border-l border-white/[0.08] relative">
+    <aside className="flex flex-col h-full bg-[#121215]/95 backdrop-blur-xl border-l border-white/[0.08] relative" role="region" aria-label="Meeting Participants">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.06]">
         <div className="flex items-center gap-2">
-          <h3 className="font-semibold text-white text-sm">
+          <h3 className="font-semibold text-white text-sm font-display">
             Participants <span className="text-white/40">({participants.length})</span>
           </h3>
           {isHost && (
             <span className="px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[10px] font-semibold flex items-center gap-1">
-              <Shield className="w-2.5 h-2.5" /> Host Controls
+              <Shield className="w-2.5 h-2.5" /> Host
             </span>
           )}
         </div>
-        <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/5 text-white/50 hover:text-white transition-colors">
+        <button onClick={onClose} aria-label="Close Participants Panel" className="p-1.5 rounded-lg hover:bg-white/5 text-white/50 hover:text-white transition-colors">
           <X className="w-4 h-4" />
         </button>
       </div>
@@ -94,7 +96,7 @@ export function ParticipantsDrawer({ onClose, onMuteAll, onEndMeetingForAll }: P
       {/* Room code & Share Link banner */}
       <div className="px-4 py-3 border-b border-white/[0.06] space-y-2">
         <div className="flex items-center justify-between text-xs text-white/40">
-          <span>Room code</span>
+          <span>Room Code</span>
           {isLocked && <span className="text-amber-400 font-medium flex items-center gap-1"><Lock className="w-3 h-3" /> Locked</span>}
         </div>
         <div className="flex items-center justify-between rounded-xl bg-[#18181b] border border-white/[0.06] px-3 py-2">
@@ -146,7 +148,7 @@ export function ParticipantsDrawer({ onClose, onMuteAll, onEndMeetingForAll }: P
               )}
             >
               {isLocked ? <Unlock className="w-3.5 h-3.5" /> : <Lock className="w-3.5 h-3.5" />}
-              {isLocked ? 'Unlock Room' : 'Lock Room'}
+              {isLocked ? 'Unlock' : 'Lock Room'}
             </button>
           </div>
         </div>
@@ -162,7 +164,7 @@ export function ParticipantsDrawer({ onClose, onMuteAll, onEndMeetingForAll }: P
             <div
               key={p.id}
               className={cn(
-                "relative flex items-center gap-3 rounded-xl px-2.5 py-2.5 transition-colors group",
+                "relative flex items-center gap-3 rounded-2xl px-2.5 py-2.5 transition-colors group",
                 p.isHost ? "bg-amber-500/[0.04] border border-amber-500/10" : "hover:bg-white/[0.03]"
               )}
             >
@@ -185,18 +187,25 @@ export function ParticipantsDrawer({ onClose, onMuteAll, onEndMeetingForAll }: P
                     </span>
                   )}
                 </p>
-                <p className="text-xs text-white/30">{p.isHost ? 'Meeting Host' : 'Guest'}</p>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] text-white/30">{p.isHost ? 'Meeting Host' : 'Guest'}</span>
+                  {p.isHandRaised && (
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-semibold animate-pulse">
+                      <Hand className="w-2.5 h-2.5" /> Hand Raised
+                    </span>
+                  )}
+                </div>
               </div>
 
               {/* Status Icons & Controls */}
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1">
                 {p.isScreenSharing && (
                   <span className="text-cyan-400 p-1" title="Sharing screen"><MonitorUp className="w-3.5 h-3.5" /></span>
                 )}
-                <span className={cn('p-1 rounded-md', p.isMicOn ? 'text-white/40' : 'text-red-400 bg-red-500/10')}>
+                <span className={cn('p-1 rounded-lg', p.isMicOn ? 'text-white/40' : 'text-red-400 bg-red-500/10')}>
                   {p.isMicOn ? <Mic className="w-3.5 h-3.5" /> : <MicOff className="w-3.5 h-3.5" />}
                 </span>
-                <span className={cn('p-1 rounded-md', p.isCamOn ? 'text-white/40' : 'text-red-400 bg-red-500/10')}>
+                <span className={cn('p-1 rounded-lg', p.isCamOn ? 'text-white/40' : 'text-red-400 bg-red-500/10')}>
                   {p.isCamOn ? <Video className="w-3.5 h-3.5" /> : <VideoOff className="w-3.5 h-3.5" />}
                 </span>
 
@@ -237,7 +246,7 @@ export function ParticipantsDrawer({ onClose, onMuteAll, onEndMeetingForAll }: P
                           onClick={() => { setConfirmKick(p); setActiveMenuId(null); }}
                           className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs text-red-400 hover:text-red-300 hover:bg-red-500/15 flex items-center gap-2 transition-colors"
                         >
-                          <UserX className="w-3.5 h-3.5" /> Remove from Meeting
+                          <UserX className="w-3.5 h-3.5" /> Remove from Call
                         </button>
                       </div>
                     )}
@@ -290,7 +299,7 @@ export function ParticipantsDrawer({ onClose, onMuteAll, onEndMeetingForAll }: P
               </div>
               <div>
                 <h4 className="text-sm font-semibold text-white">Make {confirmTransfer.name} Host?</h4>
-                <p className="text-xs text-white/50">You will transfer host controls and become a regular guest.</p>
+                <p className="text-xs text-white/50">You will transfer host controls and become a regular participant.</p>
               </div>
             </div>
             <div className="flex gap-2">
@@ -310,6 +319,6 @@ export function ParticipantsDrawer({ onClose, onMuteAll, onEndMeetingForAll }: P
           </div>
         </div>
       )}
-    </div>
+    </aside>
   );
 }

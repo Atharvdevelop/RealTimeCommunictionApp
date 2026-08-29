@@ -1,11 +1,23 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
   <defs>
-    <linearGradient id="pulseGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#34d399" />
+    <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#10b981" />
       <stop offset="100%" stop-color="#06b6d4" />
     </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="4" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
   </defs>
-  <rect width="32" height="32" rx="8" fill="url(#pulseGrad)" />
-  <path d="M8 11.5C8 10.1193 9.11929 9 10.5 9H17.5C18.8807 9 20 10.1193 20 11.5V20.5C20 21.8807 18.8807 23 17.5 23H10.5C9.11929 23 8 21.8807 8 20.5V11.5Z" fill="white" />
-  <path d="M21 13.25L24.8 10.4C25.4 9.95 26.25 10.38 26.25 11.13V20.87C26.25 21.62 25.4 22.05 24.8 21.6L21 18.75V13.25Z" fill="white" fill-opacity="0.9" />
+  <rect width="100" height="100" rx="28" fill="#09090b" />
+  <rect x="4" y="4" width="92" height="92" rx="24" stroke="url(#g)" stroke-width="2" opacity="0.4" />
+  <!-- Video Camera Icon -->
+  <rect x="22" y="30" width="36" height="40" rx="8" fill="url(#g)" filter="url(#glow)" />
+  <polygon points="62,42 78,32 78,68 62,58" fill="url(#g)" />
+  <!-- Pulse Dot -->
+  <circle cx="76" cy="24" r="6" fill="#10b981" />
+  <circle cx="76" cy="24" r="10" stroke="#10b981" stroke-width="2" opacity="0.6">
+    <animate attributeName="r" values="6;12;6" dur="2s" repeatCount="indefinite" />
+    <animate attributeName="opacity" values="0.8;0;0.8" dur="2s" repeatCount="indefinite" />
+  </circle>
 </svg>

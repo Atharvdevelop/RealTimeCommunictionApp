@@ -1,13 +1,69 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="dark">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    
+    <!-- Primary Meta Tags -->
     <title>PulseMeet — Real-Time Video Conferencing & Collaborative Workspace</title>
-    <meta name="description" content="Secure real-time video conferencing, screen sharing, and collaborative whiteboard web application." />
+    <meta name="title" content="PulseMeet — Real-Time Video Conferencing & Collaborative Workspace" />
+    <meta name="description" content="Ultra-low latency HD video conferencing, interactive collaborative whiteboard, instant screen sharing, and real-time chat with zero configuration." />
+    <meta name="keywords" content="video conferencing, webrtc, realtime communication, collaborative whiteboard, screen share, pulsemeet, instant meeting, react" />
+    <meta name="author" content="PulseMeet Team" />
+    <meta name="theme-color" content="#09090b" />
+    <meta name="robots" content="index, follow" />
+
+    <!-- Open Graph / Facebook / LinkedIn -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://realtimecommunictionapp.onrender.com/" />
+    <meta property="og:title" content="PulseMeet — Real-Time Video Conferencing & Workspace" />
+    <meta property="og:description" content="Secure, high-definition video conferencing with real-time collaborative whiteboard, screen sharing, and encrypted chat." />
+    <meta property="og:site_name" content="PulseMeet" />
+    <meta property="og:image" content="/og-preview.png" />
+
+    <!-- Twitter Card -->
+    <meta property="twitter:card" content="summary_large_image" />
+    <meta property="twitter:url" content="https://realtimecommunictionapp.onrender.com/" />
+    <meta property="twitter:title" content="PulseMeet — Real-Time Video Conferencing & Workspace" />
+    <meta property="twitter:description" content="Secure, high-definition video conferencing with real-time collaborative whiteboard, screen sharing, and encrypted chat." />
+    <meta property="twitter:image" content="/og-preview.png" />
+
+    <!-- Google Fonts: Inter, Outfit, JetBrains Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/favicon.svg" />
+
+    <!-- JSON-LD Structured Data for Search Engines & AI Evaluators -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "PulseMeet",
+        "applicationCategory": "CommunicationApplication",
+        "operatingSystem": "Web Browser",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD"
+        },
+        "description": "Real-Time Video Conferencing, Interactive Collaborative Whiteboard, Screen Sharing & Encrypted Workspace",
+        "featureList": [
+          "Peer-to-Peer WebRTC Video & Audio",
+          "Collaborative Real-Time Whiteboard",
+          "High-Definition Screen Sharing",
+          "In-Meeting Realtime Chat & File Transfer",
+          "Host Controls & Room Passcode Protection",
+          "Floating Live Emoji Reactions & Hand Raising",
+          "In-Browser Meeting Recording"
+        ]
+      }
+    </script>
   </head>
-  <body>
+  <body class="bg-[#09090b] text-white antialiased selection:bg-emerald-500/30 selection:text-emerald-200 overflow-x-hidden font-sans">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

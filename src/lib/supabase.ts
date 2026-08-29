@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, RealtimeChannel } from '@supabase/supabase-js';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
@@ -29,12 +29,14 @@ export type Message = {
   created_at: string;
 };
 
+type EventCallback = (payload: { payload?: unknown; [key: string]: unknown }) => void;
+
 // In-Memory / LocalStorage Mock Client for Zero-Config Local Testing
 class MockRealtimeChannel {
   name: string;
   private bc: BroadcastChannel | null = null;
-  private listeners: { type: string; event?: string; cb: (payload: any) => void }[] = [];
-  private currentPresence: any = null;
+  private listeners: { type: string; event?: string; cb: EventCallback }[] = [];
+  private currentPresence: Record<string, unknown> | null = null;
 
   constructor(name: string) {
     this.name = name;
@@ -51,7 +53,7 @@ class MockRealtimeChannel {
           } else if (msg.type === 'postgres_changes') {
             this.listeners
               .filter((l) => l.type === 'postgres_changes')
-              .forEach((l) => l.cb(msg.payload));
+              .forEach((l) => l.cb(msg.payload as { payload?: unknown; [key: string]: unknown }));
           } else if (msg.type === 'presence_sync') {
             this.listeners
               .filter((l) => l.type === 'presence')
@@ -64,7 +66,7 @@ class MockRealtimeChannel {
     }
   }
 
-  on(type: string, filterOrEvent: any, cb?: (payload: any) => void): this {
+  on(type: string, filterOrEvent: string | { event?: string } | EventCallback, cb?: EventCallback): this {
     if (typeof filterOrEvent === 'function') {
       this.listeners.push({ type, cb: filterOrEvent });
     } else if (typeof filterOrEvent === 'object' && filterOrEvent.event) {
@@ -83,11 +85,11 @@ class MockRealtimeChannel {
     return this;
   }
 
-  async track(presence: any): Promise<'ok'> {
+  async track(presence: Record<string, unknown>): Promise<'ok'> {
     this.currentPresence = presence;
     if (typeof window !== 'undefined') {
       try {
-        const key = `pm_presence_${this.name}_${presence.id}`;
+        const key = `pm_presence_${this.name}_${presence.id as string}`;
         localStorage.setItem(key, JSON.stringify({ ...presence, _updatedAt: Date.now() }));
       } catch {
         // ignore
@@ -104,7 +106,7 @@ class MockRealtimeChannel {
   untrack(): void {
     if (this.currentPresence && typeof window !== 'undefined') {
       try {
-        const key = `pm_presence_${this.name}_${this.currentPresence.id}`;
+        const key = `pm_presence_${this.name}_${this.currentPresence.id as string}`;
         localStorage.removeItem(key);
       } catch {
         // ignore
@@ -116,7 +118,7 @@ class MockRealtimeChannel {
     }
   }
 
-  send(message: { type: string; event: string; payload: any }): void {
+  send(message: { type: string; event: string; payload: unknown }): void {
     if (this.bc) {
       this.bc.postMessage(message);
     }
@@ -126,8 +128,8 @@ class MockRealtimeChannel {
       .forEach((l) => l.cb({ payload: message.payload }));
   }
 
-  presenceState(): Record<string, any[]> {
-    const list: any[] = [];
+  presenceState(): Record<string, Record<string, unknown>[]> {
+    const list: Record<string, unknown>[] = [];
     if (this.currentPresence) {
       list.push(this.currentPresence);
     }
@@ -168,26 +170,26 @@ class MockRealtimeChannel {
 
 const mockChannels = new Map<string, MockRealtimeChannel>();
 
+type QueryResult<T> = { data: T | null; error: Error | null };
+
 const createMockClient = () => {
   return {
     from: (table: string) => {
-      let filterCol: string | null = null;
-      let filterVal: any = null;
+      let filterVal: string | null = null;
 
       const builder = {
         select: (_cols?: string) => builder,
-        order: (_col: string, _opts?: any) => builder,
-        eq: (col: string, val: any) => {
-          filterCol = col;
+        order: (_col: string, _opts?: Record<string, unknown>) => builder,
+        eq: (_col: string, val: string) => {
           filterVal = val;
           return builder;
         },
-        maybeSingle: async () => {
+        maybeSingle: async (): Promise<QueryResult<Room | Message>> => {
           if (table === 'rooms') {
             try {
               const saved = localStorage.getItem(`pm_room_${filterVal}`);
               if (saved) {
-                return { data: JSON.parse(saved), error: null };
+                return { data: JSON.parse(saved) as Room, error: null };
               }
             } catch {
               // ignore
@@ -204,17 +206,17 @@ const createMockClient = () => {
           }
           return { data: null, error: null };
         },
-        insert: async (data: any) => {
+        insert: async (data: Record<string, unknown>): Promise<QueryResult<Room | Message>> => {
           if (table === 'rooms') {
             const room: Room = {
-              id: `room_${data.code || Math.random().toString(36).slice(2)}`,
-              code: data.code,
-              password: data.password || null,
-              host_name: data.host_name || 'Host',
+              id: `room_${(data.code as string) || Math.random().toString(36).slice(2)}`,
+              code: data.code as string,
+              password: (data.password as string) || null,
+              host_name: (data.host_name as string) || 'Host',
               created_at: new Date().toISOString(),
             };
             try {
-              localStorage.setItem(`pm_room_${data.code}`, JSON.stringify(room));
+              localStorage.setItem(`pm_room_${data.code as string}`, JSON.stringify(room));
             } catch {
               // ignore
             }
@@ -223,23 +225,23 @@ const createMockClient = () => {
           if (table === 'messages') {
             const msg: Message = {
               id: `msg_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-              room_id: data.room_id,
-              sender_id: data.sender_id,
-              sender_name: data.sender_name,
-              content: data.content,
+              room_id: data.room_id as string,
+              sender_id: data.sender_id as string,
+              sender_name: data.sender_name as string,
+              content: data.content as string,
               created_at: new Date().toISOString(),
             };
             try {
-              const prev = JSON.parse(localStorage.getItem(`pm_msgs_${data.room_id}`) || '[]');
+              const prev = JSON.parse(localStorage.getItem(`pm_msgs_${data.room_id as string}`) || '[]');
               prev.push(msg);
-              localStorage.setItem(`pm_msgs_${data.room_id}`, JSON.stringify(prev.slice(-100)));
+              localStorage.setItem(`pm_msgs_${data.room_id as string}`, JSON.stringify(prev.slice(-100)));
             } catch {
               // ignore
             }
             // Broadcast insert event
-            const ch = mockChannels.get(`messages:${data.room_id}`);
+            const ch = mockChannels.get(`messages:${data.room_id as string}`);
             if (ch) {
-              const bc = new BroadcastChannel(`pulsemeet_messages:${data.room_id}`);
+              const bc = new BroadcastChannel(`pulsemeet_messages:${data.room_id as string}`);
               bc.postMessage({
                 type: 'postgres_changes',
                 payload: { new: msg, eventType: 'INSERT' },
@@ -250,7 +252,7 @@ const createMockClient = () => {
           }
           return { data: null, error: null };
         },
-        then: (resolve: (res: { data: any[]; error: null }) => void) => {
+        then: (resolve: (res: { data: unknown[]; error: null }) => void) => {
           if (table === 'messages') {
             try {
               const msgs = JSON.parse(localStorage.getItem(`pm_msgs_${filterVal}`) || '[]');
@@ -265,15 +267,15 @@ const createMockClient = () => {
       };
       return builder;
     },
-    channel: (name: string, _config?: any) => {
+    channel: (name: string, _config?: Record<string, unknown>) => {
       let ch = mockChannels.get(name);
       if (!ch) {
         ch = new MockRealtimeChannel(name);
         mockChannels.set(name, ch);
       }
-      return ch;
+      return ch as unknown as RealtimeChannel;
     },
-    removeChannel: (channel: any) => {
+    removeChannel: (channel: { name?: string }) => {
       if (channel && channel.name) {
         const ch = mockChannels.get(channel.name);
         if (ch) {
@@ -284,8 +286,8 @@ const createMockClient = () => {
     },
     storage: {
       from: (_bucket: string) => ({
-        upload: async (_path: string, _file: File) => {
-          return { data: { path: _path }, error: null };
+        upload: async (path: string, _file: File) => {
+          return { data: { path }, error: null };
         },
         getPublicUrl: (path: string) => {
           return { data: { publicUrl: path } };
@@ -300,4 +302,4 @@ export const supabase = isSupabaseConfigured
       auth: { persistSession: false },
       realtime: { params: { eventsPerSecond: 50 } },
     })
-  : (createMockClient() as any);
+  : (createMockClient() as unknown as ReturnType<typeof createClient>);
