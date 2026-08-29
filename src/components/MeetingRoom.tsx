@@ -475,25 +475,27 @@ export function MeetingRoom({ roomCode, displayName, roomDbId, isCreator, onLeav
       </header>
 
       {/* Main video area */}
-      <main className="flex-1 flex overflow-hidden relative" role="main">
-        <div className="flex-1 p-2 sm:p-3 pb-20 sm:pb-24 overflow-hidden">
+      <main className="flex-1 min-h-0 flex overflow-hidden relative" role="main">
+        <div className="flex-1 h-full p-2 sm:p-4 pb-24 sm:pb-28 flex items-center justify-center overflow-hidden">
           {spotlightParticipant ? (
-            <div className="h-full flex flex-col gap-2">
+            <div className="w-full h-full max-h-full flex flex-col gap-2">
               {/* Spotlight main tile */}
-              <div className="flex-1 min-h-0">
-                <VideoTile
-                  participant={spotlightParticipant}
-                  stream={getStreamFor(spotlightParticipant)}
-                  isLocal={spotlightParticipant.id === userId}
-                  isSpeaking={speakingId === spotlightParticipant.id}
-                  isPinned={pinnedId === spotlightParticipant.id}
-                  filter={spotlightParticipant.id === userId ? videoFilter : 'none'}
-                  onPin={() => setPinnedId((prev) => (prev === spotlightParticipant.id ? null : spotlightParticipant.id))}
-                />
+              <div className="flex-1 min-h-0 flex items-center justify-center">
+                <div className="w-full h-full max-w-5xl max-h-full flex items-center justify-center">
+                  <VideoTile
+                    participant={spotlightParticipant}
+                    stream={getStreamFor(spotlightParticipant)}
+                    isLocal={spotlightParticipant.id === userId}
+                    isSpeaking={speakingId === spotlightParticipant.id}
+                    isPinned={pinnedId === spotlightParticipant.id}
+                    filter={spotlightParticipant.id === userId ? videoFilter : 'none'}
+                    onPin={() => setPinnedId((prev) => (prev === spotlightParticipant.id ? null : spotlightParticipant.id))}
+                  />
+                </div>
               </div>
               {/* Thumbnail carousel of others */}
               {gridParticipants.length > 0 && (
-                <div className="h-24 sm:h-28 flex gap-2 overflow-x-auto pb-1">
+                <div className="h-24 sm:h-28 flex gap-2 overflow-x-auto pb-1 shrink-0 justify-center">
                   {gridParticipants.map((p) => (
                     <div key={p.id} className="w-36 sm:w-44 shrink-0 h-full">
                       <VideoTile
@@ -510,8 +512,23 @@ export function MeetingRoom({ roomCode, displayName, roomDbId, isCreator, onLeav
                 </div>
               )}
             </div>
+          ) : gridParticipants.length === 1 ? (
+            /* Single Participant View: Centered, aspect-video optimized framing */
+            <div className="w-full h-full max-w-5xl max-h-full flex items-center justify-center p-1">
+              <div className="w-full h-full max-h-full flex items-center justify-center">
+                <VideoTile
+                  participant={allParticipants[0]}
+                  stream={getStreamFor(allParticipants[0])}
+                  isLocal={allParticipants[0].id === userId}
+                  isSpeaking={speakingId === allParticipants[0].id}
+                  isPinned={false}
+                  filter={allParticipants[0].id === userId ? videoFilter : 'none'}
+                  onPin={() => setPinnedId(allParticipants[0].id)}
+                />
+              </div>
+            </div>
           ) : (
-            <div className={cn('h-full grid gap-2', gridLayout)}>
+            <div className={cn('w-full h-full max-h-full grid gap-2 sm:gap-3', gridLayout)}>
               {allParticipants.map((p) => (
                 <div key={p.id} className="w-full h-full min-h-0">
                   <VideoTile

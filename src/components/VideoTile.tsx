@@ -69,7 +69,7 @@ export function VideoTile({
   return (
     <div
       className={cn(
-        'relative rounded-2xl overflow-hidden bg-[#18181b] border transition-all duration-300 group select-none shadow-lg',
+        'relative rounded-2xl overflow-hidden bg-[#18181b] border transition-all duration-300 group select-none shadow-lg w-full h-full flex items-center justify-center',
         isSpeaking
           ? 'border-emerald-400 ring-2 ring-emerald-400/40 shadow-[0_0_25px_rgba(16,185,129,0.3)]'
           : 'border-white/[0.06] hover:border-white/20',
@@ -90,7 +90,7 @@ export function VideoTile({
           muted={isLocal}
           playsInline
           className={cn(
-            'w-full h-full object-cover transition-all duration-200',
+            'w-full h-full object-cover object-center transition-all duration-200',
             isLocal && !isScreenSharing && '-scale-x-100',
             isLocal && filter && `video-filter-${filter}`
           )}
