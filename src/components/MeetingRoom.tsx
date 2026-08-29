@@ -478,13 +478,13 @@ export function MeetingRoom({ roomCode, displayName, roomDbId, isCreator, onLeav
       <main className="flex-1 min-h-0 flex overflow-hidden relative" role="main">
         <div className="flex-1 h-full p-2 sm:p-4 pb-24 sm:pb-28 flex items-center justify-center overflow-hidden">
           {spotlightParticipant ? (
-            <div className="w-full h-full max-h-full flex flex-col gap-2">
-              {/* Spotlight main tile */}
-              <div className="flex-1 min-h-0 flex items-center justify-center">
-                <div className="w-full h-full max-w-5xl max-h-full flex items-center justify-center">
+            <div className="w-full h-full max-h-full flex flex-col sm:flex-row gap-2.5 sm:gap-3 items-stretch">
+              {/* Main Screen Share / Presentation Stage (Left / Center) */}
+              <div className="flex-1 min-w-0 h-full flex items-center justify-center">
+                <div className="w-full h-full flex items-center justify-center">
                   <VideoTile
                     participant={spotlightParticipant}
-                    stream={getStreamFor(spotlightParticipant)}
+                    stream={spotlightParticipant.id === userId ? (state.isScreenSharing ? state.screenStream : state.localStream) : (remoteStreams[spotlightParticipant.id] || null)}
                     isLocal={spotlightParticipant.id === userId}
                     isSpeaking={speakingId === spotlightParticipant.id}
                     isPinned={pinnedId === spotlightParticipant.id}
@@ -493,24 +493,23 @@ export function MeetingRoom({ roomCode, displayName, roomDbId, isCreator, onLeav
                   />
                 </div>
               </div>
-              {/* Thumbnail carousel of others */}
-              {gridParticipants.length > 0 && (
-                <div className="h-24 sm:h-28 flex gap-2 overflow-x-auto pb-1 shrink-0 justify-center">
-                  {gridParticipants.map((p) => (
-                    <div key={p.id} className="w-36 sm:w-44 shrink-0 h-full">
-                      <VideoTile
-                        participant={p}
-                        stream={getStreamFor(p)}
-                        isLocal={p.id === userId}
-                        isSpeaking={speakingId === p.id}
-                        isPinned={false}
-                        filter={p.id === userId ? videoFilter : 'none'}
-                        onPin={() => setPinnedId(p.id)}
-                      />
-                    </div>
-                  ))}
-                </div>
-              )}
+
+              {/* Joined Members & Webcams (Right Corner Sidebar on Laptop/Desktop) */}
+              <div className="w-full sm:w-64 md:w-72 lg:w-80 flex sm:flex-col gap-2.5 overflow-x-auto sm:overflow-y-auto shrink-0 max-h-32 sm:max-h-full justify-start items-center sm:items-stretch pr-0 sm:pr-1">
+                {allParticipants.map((p) => (
+                  <div key={p.id} className="w-40 sm:w-full h-24 sm:h-40 shrink-0">
+                    <VideoTile
+                      participant={p}
+                      stream={p.id === userId ? state.localStream : (remoteStreams[p.id] || null)}
+                      isLocal={p.id === userId}
+                      isSpeaking={speakingId === p.id}
+                      isPinned={false}
+                      filter={p.id === userId ? videoFilter : 'none'}
+                      onPin={() => setPinnedId(p.id)}
+                    />
+                  </div>
+                ))}
+              </div>
             </div>
           ) : gridParticipants.length === 1 ? (
             /* Single Participant View: Centered, aspect-video optimized framing */
