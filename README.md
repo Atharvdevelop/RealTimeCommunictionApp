@@ -36,7 +36,58 @@
 
 ---
 
-## 🏗️ System Architecture
+## 🏗️ Architecture & Trade-offs
+
+> **TL;DR** — This application uses a **P2P Full-Mesh** architecture, which is the optimal cost-free design for small group calls (2–4 participants). This section explains the deliberate engineering decisions and how the system would evolve at scale.
+
+### Why P2P Mesh (not an SFU or MCU)?
+
+| Architecture | How it Works | Best For | Used Here |
+|---|---|---|---|
+| **P2P Full-Mesh** | Every peer connects directly to every other peer | ≤4 participants, zero server cost | ✅ Yes |
+| **SFU** (e.g. LiveKit, Mediasoup) | All peers send one stream to a central server which selects & forwards | 4–100+ participants | Roadmap |
+| **MCU** (e.g. Jitsi) | Server decodes, mixes, and re-encodes all streams into one | Broadcast, webinar scale | Not needed |
+
+In a **Full-Mesh**, every participant maintains a direct `RTCPeerConnection` to every other participant. Upload bandwidth scales at **O(N−1)** per client and connections scale at **O(N²)** total, making it impractical beyond 4–5 simultaneous participants due to client CPU and bandwidth saturation.
+
+For a **zero-server-cost internship project**, this is the deliberate and correct choice. It keeps operational cost at $0, removes transcoding latency, and directly demonstrates the WebRTC lifecycle that third-party SDKs (Agora, Twilio, Daily.co) intentionally abstract away.
+
+### Signaling Transport — Why Supabase Realtime?
+
+WebRTC itself has **no signaling protocol** — it only defines what to exchange (SDP offers/answers, ICE candidates), not *how* to exchange them. Common choices are:
+
+- **WebSocket server** (e.g. Socket.io on Node.js) — requires persistent compute, not serverless-compatible
+- **Supabase Realtime** — cloud-native, zero-server-management, scales automatically
+
+This app uses **Supabase Realtime broadcast channels** for signaling. This solves the key operational challenge of running stateful WebSocket connections on ephemeral serverless platforms like Vercel, while keeping the full stack deployable with a single `npm run build`.
+
+### Key Engineering Challenges Solved
+
+**1. Asynchronous SDP & ICE Candidate Synchronization**
+
+If an ICE candidate arrives before `setRemoteDescription()` resolves, the browser throws an `InvalidStateError`. The signaling state machine in `useWebRTC.ts` solves this by queuing candidates in `pendingCandidatesRef` and draining the queue only after the remote description is applied.
+
+**2. Deterministic Call Initiation (No Double-Offer Race)**
+
+In a naive P2P setup, both peers simultaneously create offers — causing a "glare" state where both have `have-local-offer`. This is resolved deterministically: only the peer with the **alphabetically higher user ID** initiates the offer, guaranteeing exactly one `RTCPeerConnection` is created per pair.
+
+**3. Automatic ICE Restart on Network Interruption**
+
+When a peer switches networks (e.g. Wi-Fi to mobile data), the `iceConnectionState` transitions to `disconnected` or `failed`. `useWebRTC.ts` detects this and automatically triggers `pc.createOffer({ iceRestart: true })` after a 4-second debounce, re-negotiating ICE without requiring a manual page reload.
+
+**4. Adaptive Bitrate Constraints**
+
+As participant count grows, video quality is automatically adjusted via `RTCRtpSender.setParameters()` to reduce CPU and bandwidth load:
+- 1:1 call → **1.5 Mbps** (1080p/720p)
+- 3–4 peers → **600 kbps** (480p)
+- 5+ peers → **250 kbps** (360p)
+
+### If This Were a Production System...
+
+The natural next architectural step for handling 5+ participants would be integrating an **SFU** (Selective Forwarding Unit). A LiveKit or Mediasoup SFU keeps each client's **upload bandwidth flat at O(1)** — the client sends one stream to the SFU, which selectively forwards it to recipients. The codebase is structured so `useWebRTC.ts` could be swapped for a LiveKit client adapter without changing any UI component.
+
+---
+
 
 PulseMeet uses a reactive, event-driven mesh architecture with an abstracted real-time transport layer.
 
@@ -153,9 +204,10 @@ Open [http://localhost:5173](http://localhost:5173) in your browser. Open multip
 | <kbd>C</kbd> | Open / Close In-Meeting Chat Drawer |
 | <kbd>P</kbd> | Open / Close Participants Panel |
 | <kbd>W</kbd> | Open / Close Collaborative Whiteboard |
-| <kbd>S</kbd> | Toggle Screen Sharing |
+| <kbd>F</kbd> | **Focus Mode** — fullscreen screen share (when active) |
 | <kbd>?</kbd> | Open Keyboard Shortcuts Cheatsheet |
-| <kbd>Esc</kbd> | Close active drawer or modal dialog |
+| <kbd>Esc</kbd> | Close active drawer, modal, or exit Focus Mode |
+
 
 ---
 
@@ -201,14 +253,17 @@ RealTimeCommunictionApp/
 │   │   ├── RoomContext.tsx     # Main application state provider
 │   │   └── RoomContextInstance.ts # Context interfaces & definitions
 │   ├── hooks/
-│   │   ├── useMedia.ts         # Camera, mic & screen stream hook
-│   │   ├── useRecorder.ts      # Client-side MediaRecorder capture
-│   │   ├── useRoom.ts          # Central room context consumer hook
-│   │   └── useWebRTC.ts        # P2P signaling & peer connections
+│   │   ├── useAudioActivity.ts  # Real Web Audio RMS speaking detection
+│   │   ├── useMedia.ts          # Camera, mic & screen stream hook
+│   │   ├── usePeerStats.ts      # Real RTCPeerConnection.getStats() collector
+│   │   ├── useRecorder.ts       # Client-side MediaRecorder capture
+│   │   ├── useRoom.ts           # Central room context consumer hook
+│   │   └── useWebRTC.ts         # P2P signaling, ICE restart & peer connections
 │   ├── lib/
-│   │   ├── supabase.ts         # Mock & production cloud database
-│   │   ├── types.ts            # Centralized TypeScript definitions
-│   │   └── utils.ts            # Utility functions & formatters
+│   │   ├── supabase.ts          # Mock & production cloud database
+│   │   ├── types.ts             # Centralized TypeScript definitions
+│   │   ├── utils.ts             # Utility functions & formatters
+│   │   └── webrtc-config.ts     # Dynamic TURN/STUN ICE server configuration
 │   ├── App.tsx                 # Top-level state machine router
 │   ├── index.css               # Design system, glassmorphism & filters
 │   └── main.tsx                # React DOM root entry
