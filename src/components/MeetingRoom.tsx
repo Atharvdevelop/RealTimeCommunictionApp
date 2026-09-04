@@ -7,6 +7,7 @@ import { useRoom } from '@/hooks/useRoom';
 import { useMedia } from '@/hooks/useMedia';
 import { useWebRTC } from '@/hooks/useWebRTC';
 import { useRecorder } from '@/hooks/useRecorder';
+import { useAudioActivity } from '@/hooks/useAudioActivity';
 import { VideoTile } from '@/components/VideoTile';
 import { ControlDock } from '@/components/ControlDock';
 import { ChatDrawer } from '@/components/ChatDrawer';
@@ -19,6 +20,7 @@ import { SettingsModal } from '@/components/SettingsModal';
 import { FloatingReactionsOverlay } from '@/components/FloatingReactions';
 import { cn } from '@/lib/utils';
 import type { PresenceState, ReactionEvent, VideoFilter } from '@/lib/types';
+
 
 type Toast = {
   id: string;
@@ -62,7 +64,7 @@ export function MeetingRoom({ roomCode, displayName, roomDbId, isCreator, onLeav
     stopPreview,
   } = useMedia();
 
-  const { remoteStreams } = useWebRTC({
+  const { remoteStreams, peersRef } = useWebRTC({
     channel,
     localStream: state.localStream,
     screenStream: state.screenStream,
@@ -94,7 +96,15 @@ export function MeetingRoom({ roomCode, displayName, roomDbId, isCreator, onLeav
   const audioCtxRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const rafRef = useRef<number>(0);
+
+  // Real-time speaking detection via Web Audio API
+  const isLocalSpeaking = useAudioActivity(state.localStream, state.micOn);
   const [speakingId, setSpeakingId] = useState<string | null>(null);
+
+  // Reflect local speaking state into the tracked speakingId
+  useEffect(() => {
+    setSpeakingId(isLocalSpeaking ? userId : null);
+  }, [isLocalSpeaking, userId]);
 
   const addToast = useCallback((message: string, type: Toast['type'] = 'info') => {
     const id = Math.random().toString(36).slice(2);
@@ -119,6 +129,7 @@ export function MeetingRoom({ roomCode, displayName, roomDbId, isCreator, onLeav
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomDbId]);
+
 
   // Subscribe to reaction events
   useEffect(() => {
@@ -185,42 +196,7 @@ export function MeetingRoom({ roomCode, displayName, roomDbId, isCreator, onLeav
     });
   }, [state.micOn, state.camOn, state.isScreenSharing, updatePresence]);
 
-  // Local audio level for active speaker detection
-  useEffect(() => {
-    if (!state.localStream || !state.micOn) {
-      return;
-    }
-    const audioTrack = state.localStream.getAudioTracks()[0];
-    if (!audioTrack) return;
-    try {
-      if (!audioCtxRef.current) {
-        audioCtxRef.current = new AudioContext();
-        const source = audioCtxRef.current.createMediaStreamSource(new MediaStream([audioTrack]));
-        const analyser = audioCtxRef.current.createAnalyser();
-        analyser.fftSize = 256;
-        source.connect(analyser);
-        analyserRef.current = analyser;
-      }
-      const analyser = analyserRef.current!;
-      const data = new Uint8Array(analyser.frequencyBinCount);
-      const tick = () => {
-        analyser.getByteFrequencyData(data);
-        const avg = data.reduce((a, b) => a + b, 0) / data.length;
-        if (avg > 30) {
-          setSpeakingId(userId);
-        } else if (speakingId === userId) {
-          setSpeakingId(null);
-        }
-        rafRef.current = requestAnimationFrame(tick);
-      };
-      tick();
-    } catch {
-      // ignore
-    }
-    return () => cancelAnimationFrame(rafRef.current);
-  }, [state.localStream, state.micOn, userId, speakingId]);
 
-  // Global Keyboard Shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Ignore when typing in inputs
@@ -429,8 +405,9 @@ export function MeetingRoom({ roomCode, displayName, roomDbId, isCreator, onLeav
             <span className="text-xs sm:text-sm text-white/80 font-mono tabular-nums">{formatElapsed(elapsed)}</span>
           </div>
 
-          {/* Network Health Diagnostics HUD */}
-          <NetworkStatsHUD />
+          {/* Network Health Diagnostics HUD — wired to real RTCPeerConnection stats */}
+          <NetworkStatsHUD peersRef={peersRef} />
+
 
           {/* Layout Mode Switcher */}
           <button

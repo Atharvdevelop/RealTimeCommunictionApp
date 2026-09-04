@@ -22,6 +22,40 @@ type LocalFile = {
 
 const EMOJIS = ['👍', '❤️', '😂', '🎉', '👏', '🔥', '✅', '🤔', '😮', '🙏', '💯', '🚀'];
 
+/** Maximum allowed file upload size: 15 MB */
+const MAX_FILE_SIZE_BYTES = 15 * 1024 * 1024;
+
+/**
+ * Allowed file MIME type prefixes.
+ * Rejects executables, scripts, and other potentially dangerous types.
+ */
+const ALLOWED_MIME_PREFIXES = [
+  'image/', 'video/', 'audio/',
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument',
+  'application/vnd.ms-',
+  'application/zip', 'application/x-zip',
+  'text/plain', 'text/csv',
+];
+
+/**
+ * Sanitize a URL for use in an <a href>.  Only https: and blob: are allowed.
+ * Any other scheme (e.g. javascript:) is replaced with an empty string.
+ */
+function sanitizeFileUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol === 'https:' || parsed.protocol === 'blob:') {
+      return url;
+    }
+  } catch {
+    // not a valid URL — could be a relative path; allow it
+    if (!url.startsWith('javascript:') && !url.startsWith('data:')) return url;
+  }
+  return '';
+}
+
 export function ChatDrawer({ onClose, onRead }: Props) {
   const { roomDbId, userId, userName, participants } = useRoom();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -30,8 +64,10 @@ export function ChatDrawer({ onClose, onRead }: Props) {
   const [sharedFiles, setSharedFiles] = useState<LocalFile[]>([]);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [dragOver, setDragOver] = useState(false);
+  const [fileError, setFileError] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
 
   useEffect(() => {
     onRead();
@@ -98,6 +134,24 @@ export function ChatDrawer({ onClose, onRead }: Props) {
 
   const handleFile = useCallback(async (file: File) => {
     if (!roomDbId) return;
+
+    // ─── Security: size check ─────────────────────────────────────────────
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      setFileError(`"${file.name}" exceeds the 15 MB limit and was not uploaded.`);
+      setTimeout(() => setFileError(null), 5000);
+      return;
+    }
+
+    // ─── Security: MIME type allowlist ───────────────────────────────────
+    const isAllowedMime = ALLOWED_MIME_PREFIXES.some((prefix) =>
+      file.type.startsWith(prefix)
+    );
+    if (!isAllowedMime) {
+      setFileError(`"${file.name}" has a disallowed file type (${file.type || 'unknown'}).`);
+      setTimeout(() => setFileError(null), 5000);
+      return;
+    }
+
     const fileId = generateId();
     const objectKey = `${roomDbId}/${fileId}-${file.name}`;
     setUploadProgress(0);
@@ -143,6 +197,7 @@ export function ChatDrawer({ onClose, onRead }: Props) {
       payload: sharedFile,
     });
   }, [roomDbId, userName]);
+
 
   const onDrop = (e: React.DragEvent) => {
     e.preventDefault();
@@ -221,8 +276,9 @@ export function ChatDrawer({ onClose, onRead }: Props) {
                   </p>
                 </div>
                 <a
-                  href={file.url}
+                  href={sanitizeFileUrl(file.url)}
                   download={file.name}
+                  rel="noopener noreferrer"
                   className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-white/60 hover:text-white transition-colors shrink-0"
                   title="Download File"
                 >
@@ -244,6 +300,14 @@ export function ChatDrawer({ onClose, onRead }: Props) {
             </div>
           </div>
         )}
+
+        {fileError && (
+          <div className="rounded-xl bg-red-500/10 border border-red-500/20 p-3 text-xs text-red-300 flex items-start gap-2">
+            <span className="shrink-0 mt-0.5">⚠️</span>
+            <span>{fileError}</span>
+          </div>
+        )}
+
       </div>
 
       {/* Quick mentions */}

@@ -76,9 +76,13 @@ export type VideoFilter = 'none' | 'blur' | 'grayscale' | 'warm' | 'cool' | 'sep
 export type NetworkQuality = 'excellent' | 'good' | 'fair' | 'poor';
 
 export type NetworkStats = {
-  ping: number; // in ms
-  packetLoss: number; // in %
-  fps: number;
+  ping: number;        // Round-trip time in ms (from RTCPeerConnection candidate-pair stats)
+  packetLoss: number;  // Packet loss in %
+  fps: number;         // Incoming video framerate
   quality: NetworkQuality;
+  // Extended real stats (undefined when no peer connected yet)
+  bitrate?: number;    // Incoming bitrate in kbps
+  resolution?: string; // e.g. "1280×720"
+  codec?: string;      // e.g. "VP8" | "H264"
 };
 

@@ -1,20 +1,8 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import type { PresenceState } from '@/lib/types';
+import { RTC_CONFIG } from '@/lib/webrtc-config';
 
-const RTC_CONFIG: RTCConfiguration = {
-  iceServers: [
-    { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' },
-    { urls: 'stun:stun2.l.google.com:19302' },
-    { urls: 'stun:stun3.l.google.com:19302' },
-    { urls: 'stun:stun4.l.google.com:19302' },
-    { urls: 'stun:stun.cloudflare.com:3478' },
-    { urls: 'stun:stun.services.mozilla.com' },
-    { urls: 'stun:global.stun.twilio.com:3478' },
-  ],
-  iceCandidatePoolSize: 10,
-};
 
 type SignalPayload = {
   from: string;
@@ -47,6 +35,8 @@ export function useWebRTC({
   const peersRef = useRef<Map<string, RTCPeerConnection>>(new Map());
   const pendingCandidatesRef = useRef<Map<string, RTCIceCandidateInit[]>>(new Map());
   const activeStreamRef = useRef<MediaStream | null>(null);
+  // Track ICE restart debounce timers per peer
+  const iceRestartTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
   // Active outgoing stream (screen share or camera/mic)
   const activeStream = isScreenSharing && screenStream ? screenStream : localStream;
@@ -92,6 +82,53 @@ export function useWebRTC({
       }
     };
 
+    // ─── ICE Connection State: auto-restart on failure ────────────────────
+    let iceRestartPending = false;
+    pc.oniceconnectionstatechange = () => {
+      const state = pc.iceConnectionState;
+      if (state === 'failed' || state === 'disconnected') {
+        // Debounce: wait 4s before restarting ICE (handles transient blips)
+        const existing = iceRestartTimersRef.current.get(peerId);
+        if (existing) clearTimeout(existing);
+        const timer = setTimeout(async () => {
+          iceRestartTimersRef.current.delete(peerId);
+          // Only restart if connection is still degraded and we're still tracking this peer
+          if (!peersRef.current.has(peerId)) return;
+          const currentState = pc.iceConnectionState;
+          if (currentState !== 'failed' && currentState !== 'disconnected') return;
+          if (iceRestartPending) return;
+          iceRestartPending = true;
+          try {
+            const offer = await pc.createOffer({ iceRestart: true });
+            await pc.setLocalDescription(offer);
+            channel?.send({
+              type: 'broadcast',
+              event: 'webrtc:signal',
+              payload: {
+                from: userId,
+                to: peerId,
+                signal: { type: 'offer', sdp: pc.localDescription },
+              },
+            });
+            console.info(`[WebRTC] ICE restart initiated for peer ${peerId} (state: ${currentState})`);
+          } catch (err) {
+            console.warn(`[WebRTC] ICE restart failed for peer ${peerId}:`, err);
+          } finally {
+            iceRestartPending = false;
+          }
+        }, 4000);
+        iceRestartTimersRef.current.set(peerId, timer);
+      } else if (state === 'connected' || state === 'completed') {
+        // Clear any pending restart timer if connection recovers on its own
+        const existing = iceRestartTimersRef.current.get(peerId);
+        if (existing) {
+          clearTimeout(existing);
+          iceRestartTimersRef.current.delete(peerId);
+        }
+        iceRestartPending = false;
+      }
+    };
+
     // Remote track received
     pc.ontrack = (event) => {
       setRemoteStreams((prev) => {
@@ -123,6 +160,7 @@ export function useWebRTC({
 
     return pc;
   }, [channel, userId]);
+
 
   // Initiate call to remote peer
   const callPeer = useCallback(async (peerId: string) => {
@@ -294,12 +332,51 @@ export function useWebRTC({
   useEffect(() => {
     const peers = peersRef.current;
     const pendingCandidates = pendingCandidatesRef.current;
+    const iceRestartTimers = iceRestartTimersRef.current;
     return () => {
       peers.forEach((pc) => pc.close());
       peers.clear();
       pendingCandidates.clear();
+      iceRestartTimers.forEach((t) => clearTimeout(t));
+      iceRestartTimers.clear();
     };
   }, []);
 
-  return { remoteStreams };
+  // ─── Adaptive Bitrate Constraints ──────────────────────────────────────────
+  // Reduce video bitrate caps as participant count grows to maintain quality under load.
+  useEffect(() => {
+    const peerCount = participants.length;
+    // Bitrate caps in bits/second
+    const maxBitrateBps =
+      peerCount <= 2 ? 1_500_000 :  // 1:1 → 1.5 Mbps
+      peerCount <= 4 ? 600_000 :    // small group → 600 kbps
+      250_000;                       // 5+ peers → 250 kbps
+    const degradation: RTCDegradationPreference = activeStreamRef.current
+      ?.getVideoTracks()[0]
+      ?.getSettings().displaySurface
+      ? 'maintain-framerate'         // screen share: keep fps, drop resolution
+      : 'balanced';                  // webcam: balance both
+
+    peersRef.current.forEach((pc) => {
+      pc.getSenders().forEach((sender) => {
+        if (sender.track?.kind !== 'video') return;
+        const params = sender.getParameters();
+        if (!params.encodings || params.encodings.length === 0) {
+          params.encodings = [{}];
+        }
+        params.encodings.forEach((enc) => {
+          enc.maxBitrate = maxBitrateBps;
+          // degradationPreference is a non-standard extension in some browsers;
+          // cast to any to avoid strict-lib errors while still sending the hint.
+          (enc as RTCRtpEncodingParameters & { degradationPreference?: string }).degradationPreference = degradation;
+        });
+        sender.setParameters(params).catch(() => {
+          // Some browsers don't support setParameters mid-call; ignore
+        });
+      });
+    });
+  }, [participants.length]);
+
+
+  return { remoteStreams, peersRef };
 }
