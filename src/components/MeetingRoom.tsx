@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import {
   Video, Copy, Check, Clock, ShieldAlert, Info, Crown,
-  AlertTriangle, Link2, LayoutGrid, Maximize2, HelpCircle
+  AlertTriangle, Link2, LayoutGrid, Maximize2, HelpCircle, Minimize2, MonitorUp
 } from 'lucide-react';
+
 import { useRoom } from '@/hooks/useRoom';
 import { useMedia } from '@/hooks/useMedia';
 import { useWebRTC } from '@/hooks/useWebRTC';
@@ -83,6 +84,9 @@ export function MeetingRoom({ roomCode, displayName, roomDbId, isCreator, onLeav
   const [settingsModalOpen, setSettingsModalOpen] = useState(false);
   const [videoFilter, setVideoFilter] = useState<VideoFilter>('none');
   const [layoutMode, setLayoutMode] = useState<'auto' | 'grid' | 'spotlight'>('auto');
+  /** Focus mode: hides all chrome, shows only the screen share at full size */
+  const [screenFocusMode, setScreenFocusMode] = useState(false);
+
 
   const [unreadCount, setUnreadCount] = useState(0);
   const [pinnedId, setPinnedId] = useState<string | null>(null);
@@ -196,6 +200,13 @@ export function MeetingRoom({ roomCode, displayName, roomDbId, isCreator, onLeav
     });
   }, [state.micOn, state.camOn, state.isScreenSharing, updatePresence]);
 
+  // Exit focus mode automatically when screen sharing stops
+  useEffect(() => {
+    if (!state.isScreenSharing) {
+      setScreenFocusMode(false);
+    }
+  }, [state.isScreenSharing]);
+
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -225,10 +236,19 @@ export function MeetingRoom({ roomCode, displayName, roomDbId, isCreator, onLeav
       } else if (e.key === 'w' || e.key === 'W') {
         e.preventDefault();
         setWhiteboardOpen((v) => !v);
+      } else if (e.key === 'f' || e.key === 'F') {
+        // F key: toggle screen focus mode (only available when someone is sharing)
+        const anyoneSharing = participants.some((p) => p.isScreenSharing) || state.isScreenSharing;
+        if (anyoneSharing) {
+          e.preventDefault();
+          setScreenFocusMode((v) => !v);
+        }
       } else if (e.key === '?') {
+
         e.preventDefault();
         setShortcutsModalOpen((v) => !v);
       } else if (e.key === 'Escape') {
+        setScreenFocusMode(false);
         setChatOpen(false);
         setParticipantsOpen(false);
         setWhiteboardOpen(false);
@@ -333,6 +353,12 @@ export function MeetingRoom({ roomCode, displayName, roomDbId, isCreator, onLeav
     return remoteStreams[p.id] || null;
   };
 
+  /** True when this participant's tile should use object-contain (screen share active) */
+  const isScreenShareStreamFor = (p: PresenceState): boolean => {
+    if (p.id === userId) return state.isScreenSharing;
+    return p.isScreenSharing;
+  };
+
   // Dynamic grid responsive columns and rows
   const gridCount = gridParticipants.length;
   const gridLayout =
@@ -359,6 +385,69 @@ export function MeetingRoom({ roomCode, displayName, roomDbId, isCreator, onLeav
 
   return (
     <div className="h-screen w-screen bg-[#09090b] overflow-hidden flex flex-col relative">
+      {/* ── FOCUS MODE OVERLAY ─────────────────────────────────────────────────
+          Full-screen screen share viewer. All other UI is hidden.
+          Activated by: Focus button in the spotlight view, or keyboard 'F'. */}
+      {screenFocusMode && spotlightParticipant && (
+        <div className="fixed inset-0 z-[200] bg-black flex flex-col">
+          {/* Minimal top bar */}
+          <div className="flex items-center justify-between px-4 py-2.5 bg-black/60 backdrop-blur-xl border-b border-white/[0.08] shrink-0 absolute top-0 left-0 right-0 opacity-0 hover:opacity-100 transition-opacity duration-200 z-10">
+            <div className="flex items-center gap-2 text-white/70">
+              <MonitorUp className="w-4 h-4 text-cyan-400" />
+              <span className="text-sm font-medium">
+                {spotlightParticipant.name}{spotlightParticipant.id === userId ? ' (You)' : ''} — Screen Share
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-white/40 mr-2 hidden sm:block">Press <kbd className="px-1.5 py-0.5 rounded bg-white/10 font-mono text-[10px]">F</kbd> or <kbd className="px-1.5 py-0.5 rounded bg-white/10 font-mono text-[10px]">Esc</kbd> to exit</span>
+              <button
+                onClick={() => setScreenFocusMode(false)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-medium transition-colors border border-white/[0.12]"
+              >
+                <Minimize2 className="w-3.5 h-3.5" />
+                Exit Focus
+              </button>
+            </div>
+          </div>
+
+          {/* Full-screen video — object-contain fills the black canvas */}
+          <div className="w-full h-full flex items-center justify-center bg-black">
+            <VideoTile
+              participant={spotlightParticipant}
+              stream={spotlightParticipant.id === userId
+                ? (state.isScreenSharing ? state.screenStream : state.localStream)
+                : (remoteStreams[spotlightParticipant.id] || null)}
+              isLocal={spotlightParticipant.id === userId}
+              isSpeaking={false}
+              isPinned={false}
+              isScreenShareStream={isScreenShareStreamFor(spotlightParticipant)}
+              filter='none'
+              onPin={() => {}}
+            />
+          </div>
+
+          {/* Minimal dock — stop sharing / leave */}
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-3 px-4 py-2.5 rounded-2xl bg-[#18181b]/90 backdrop-blur-xl border border-white/[0.1] shadow-2xl opacity-0 hover:opacity-100 transition-opacity duration-200 z-10">
+            {state.isScreenSharing && (
+              <button
+                onClick={() => { handleToggleScreen(); setScreenFocusMode(false); }}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-red-500/15 border border-red-500/30 text-red-400 hover:bg-red-500/25 text-xs font-semibold transition-colors"
+              >
+                <MonitorUp className="w-3.5 h-3.5" />
+                Stop Sharing
+              </button>
+            )}
+            <button
+              onClick={() => setScreenFocusMode(false)}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white/70 hover:text-white hover:bg-white/10 text-xs font-semibold transition-colors"
+            >
+              <Minimize2 className="w-3.5 h-3.5" />
+              Exit Focus Mode
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Live Floating Reactions Overlay */}
       <FloatingReactionsOverlay reactions={floatingReactions} />
 
@@ -457,7 +546,7 @@ export function MeetingRoom({ roomCode, displayName, roomDbId, isCreator, onLeav
           {spotlightParticipant ? (
             <div className="w-full h-full max-h-full flex flex-col sm:flex-row gap-2.5 sm:gap-3 items-stretch">
               {/* Main Screen Share / Presentation Stage (Left / Center) */}
-              <div className="flex-1 min-w-0 h-full flex items-center justify-center">
+              <div className="flex-1 min-w-0 h-full flex items-center justify-center relative group/spotlight">
                 <div className="w-full h-full flex items-center justify-center">
                   <VideoTile
                     participant={spotlightParticipant}
@@ -465,10 +554,22 @@ export function MeetingRoom({ roomCode, displayName, roomDbId, isCreator, onLeav
                     isLocal={spotlightParticipant.id === userId}
                     isSpeaking={speakingId === spotlightParticipant.id}
                     isPinned={pinnedId === spotlightParticipant.id}
+                    isScreenShareStream={isScreenShareStreamFor(spotlightParticipant)}
                     filter={spotlightParticipant.id === userId ? videoFilter : 'none'}
                     onPin={() => setPinnedId((prev) => (prev === spotlightParticipant.id ? null : spotlightParticipant.id))}
                   />
                 </div>
+                {/* Focus Mode button — appears on hover over the spotlight tile */}
+                {isScreenShareStreamFor(spotlightParticipant) && (
+                  <button
+                    onClick={() => setScreenFocusMode(true)}
+                    title="Focus Mode — full screen (F)"
+                    className="absolute top-3 right-3 z-20 flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-black/70 backdrop-blur-md border border-white/[0.12] text-white/80 hover:text-white hover:bg-black/90 text-xs font-medium transition-all opacity-0 group-hover/spotlight:opacity-100 shadow-lg"
+                  >
+                    <Maximize2 className="w-3.5 h-3.5 text-cyan-400" />
+                    <span className="hidden sm:inline">Focus Mode</span>
+                  </button>
+                )}
               </div>
 
               {/* Joined Members & Webcams (Right Corner Sidebar on Laptop/Desktop) */}

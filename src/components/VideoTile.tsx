@@ -10,8 +10,11 @@ type Props = {
   isSpeaking: boolean;
   isPinned: boolean;
   filter?: VideoFilter;
+  /** When true, uses object-contain so the full screen share frame is visible */
+  isScreenShareStream?: boolean;
   onPin: () => void;
 };
+
 
 export function VideoTile({
   participant,
@@ -20,8 +23,10 @@ export function VideoTile({
   isSpeaking,
   isPinned,
   filter = 'none',
+  isScreenShareStream = false,
   onPin,
 }: Props) {
+
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -90,8 +95,13 @@ export function VideoTile({
           muted={isLocal}
           playsInline
           className={cn(
-            'w-full h-full object-cover object-center transition-all duration-200',
-            isLocal && !isScreenSharing && '-scale-x-100',
+            'w-full h-full transition-all duration-200',
+            // Screen share: contain so the full desktop is always visible
+            isScreenShareStream
+              ? 'object-contain object-center bg-black'
+              : 'object-cover object-center',
+            // Mirror local webcam only (not screen share)
+            isLocal && !isScreenSharing && !isScreenShareStream && '-scale-x-100',
             isLocal && filter && `video-filter-${filter}`
           )}
         />
